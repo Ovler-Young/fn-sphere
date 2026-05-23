@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { $ZodType } from "zod/v4/core";
 import type { FnSchema } from "../types.js";
 import { unreachable } from "../utils.js";
@@ -6,7 +7,14 @@ import type {
   StrictFilterGroup,
   StrictSingleFilter,
 } from "./types.js";
-import { and, getValueAtPath, or, resolveFilterArg } from "./utils.js";
+import {
+  and,
+  getParametersExceptFirst,
+  getValueAtPath,
+  isFilterArgExpression,
+  or,
+  resolveFilterArgExpression,
+} from "./utils.js";
 import { getRuleFilterSchema, normalizeFilter } from "./validation.js";
 
 type FilterPredicateOptions<T> = {
@@ -96,12 +104,21 @@ const createSingleRulePredicate = <Data>({
     : (filterSchema.define.implement(filterSchema.implement) as (
         ...data: unknown[]
       ) => boolean);
+  const argumentSchemas = getParametersExceptFirst(filterSchema)._zod.def.items;
 
   return (data: Data): boolean => {
     const target = getValueAtPath(data, strictSingleRule.path);
-    const args = strictSingleRule.args.map((arg) =>
-      resolveFilterArg(arg, data),
-    );
+    const args = strictSingleRule.args.map((arg, index) => {
+      const argumentSchema = argumentSchemas[index] as $ZodType | undefined;
+      if (
+        !argumentSchema ||
+        !isFilterArgExpression(arg) ||
+        z.safeParse(argumentSchema, arg).success
+      ) {
+        return arg;
+      }
+      return resolveFilterArgExpression(arg, data);
+    });
     const result = fnWithImplement(target, ...args);
     return strictSingleRule.invert ? !result : !!result;
   };

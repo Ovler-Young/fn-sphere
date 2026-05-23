@@ -338,6 +338,24 @@ describe("isValidRule", () => {
         }),
       }),
     ).toBe(false);
+    expect(
+      isValidRule({
+        filterFnList: [greaterThan],
+        dataSchema: schema,
+        rule: createSingleFilter({
+          name: "Greater than",
+          path: ["score"],
+          args: [
+            {
+              type: "binary",
+              op: "multiply",
+              left: { type: "literal", value: null },
+              right: { type: "field", path: ["multiplier"] },
+            },
+          ],
+        }),
+      }),
+    ).toBe(false);
   });
 
   it("should validate date offset expressions", () => {
@@ -409,6 +427,26 @@ describe("isValidRule", () => {
               op: "add",
               duration: {
                 days: { type: "field", path: ["name"] },
+              },
+            },
+          ],
+        }),
+      }),
+    ).toBe(false);
+    expect(
+      isValidRule({
+        filterFnList: [before],
+        dataSchema: schema,
+        rule: createSingleFilter({
+          name: "Before",
+          path: ["birthday"],
+          args: [
+            {
+              type: "dateOffset",
+              base: { type: "field", path: ["deadline"] },
+              op: "add",
+              duration: {
+                days: { type: "literal", value: {} },
               },
             },
           ],

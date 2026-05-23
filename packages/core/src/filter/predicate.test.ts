@@ -257,6 +257,39 @@ describe("createFilterPredicate", () => {
     ).toBe(false);
   });
 
+  test("keeps legacy object literal arguments unchanged", () => {
+    const objectSchema = z.object({
+      name: z.string(),
+    });
+    const objectEquals = defineTypedFn({
+      name: "objectEquals",
+      define: z.function({
+        input: [
+          z.string(),
+          z.object({
+            type: z.literal("field"),
+            path: z.array(z.string()),
+          }),
+        ],
+        output: z.boolean(),
+      }),
+      implement: (value, target) => value === target.path[0],
+    });
+    const rule = createSingleFilter({
+      path: ["name"],
+      name: "objectEquals",
+      args: [{ type: "field", path: ["Alice"] }],
+    });
+    const predicate = createFilterPredicate({
+      filterFnList: [objectEquals],
+      schema: objectSchema,
+      filterRule: rule,
+      fallbackValue: false,
+    });
+
+    expect(predicate({ name: "Alice" })).toBe(true);
+  });
+
   test("resolves numeric binary expression arguments", () => {
     const numericSchema = z.object({
       score: z.number(),

@@ -186,9 +186,11 @@ const isCompatibleExpressionSchema = (
 const inferExpressionSchema = ({
   dataSchema,
   expression,
+  expectedSchema,
 }: {
   dataSchema: $ZodType;
   expression: FilterArgExpression;
+  expectedSchema?: $ZodType | undefined;
 }): (ValidateSuccess & { data: $ZodType }) | ValidateError => {
   if (expression.type === "field") {
     const fieldSchema = getSchemaAtPath(dataSchema, expression.path);
@@ -215,17 +217,26 @@ const inferExpressionSchema = ({
     if (expression.value instanceof Date) {
       return { success: true, data: dateSchema };
     }
+    if (expectedSchema) {
+      const parseResult = z.safeParse(expectedSchema, expression.value);
+      if (!parseResult.success) {
+        return parseResult;
+      }
+      return { success: true, data: expectedSchema };
+    }
     return { success: true, data: z.any() };
   }
   if (expression.type === "binary") {
     const left = inferExpressionSchema({
       dataSchema,
       expression: expression.left,
+      expectedSchema: numberSchema,
     });
     if (!left.success) return left;
     const right = inferExpressionSchema({
       dataSchema,
       expression: expression.right,
+      expectedSchema: numberSchema,
     });
     if (!right.success) return right;
     if (
@@ -261,6 +272,7 @@ const inferExpressionSchema = ({
         const part = inferExpressionSchema({
           dataSchema,
           expression: durationPart,
+          expectedSchema: numberSchema,
         });
         if (!part.success) return part;
         if (!isCompatibleExpressionSchema(numberSchema, part.data)) {
@@ -286,6 +298,7 @@ const inferExpressionSchema = ({
     const amount = inferExpressionSchema({
       dataSchema,
       expression: legacyAmount,
+      expectedSchema: numberSchema,
     });
     if (!amount.success) return amount;
     if (!isCompatibleExpressionSchema(numberSchema, amount.data)) {
@@ -331,6 +344,9 @@ const validateRuleArgs = ({
       }
       continue;
     }
+    if (z.safeParse(parameterSchema as $ZodType, arg).success) {
+      continue;
+    }
     hasExpression = true;
     if (arg.type === "literal") {
       if (validateLiteral) {
@@ -344,6 +360,7 @@ const validateRuleArgs = ({
     const expressionResult = inferExpressionSchema({
       dataSchema,
       expression: arg,
+      expectedSchema: parameterSchema as $ZodType,
     });
     if (!expressionResult.success) {
       return expressionResult;
