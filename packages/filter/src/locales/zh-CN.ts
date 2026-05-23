@@ -9,6 +9,18 @@ export const zhCN = {
   deleteRule: "删除",
   deleteGroup: "删除组",
 
+  // Argument input
+  argumentModeValue: "值",
+  argumentModeField: "字段",
+  argumentModeExpression: "表达式",
+  argumentOperatorAdd: "+",
+  argumentOperatorSubtract: "-",
+  argumentOperatorMultiply: "*",
+  argumentOperatorDivide: "/",
+  argumentUnitYear: "年",
+  argumentUnitMonth: "月",
+  argumentUnitDay: "天",
+
   // Filter
   // General Filter
   isNot: "is not",

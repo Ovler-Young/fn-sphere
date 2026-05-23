@@ -246,6 +246,176 @@ describe("isValidRule", () => {
     });
     expect(newResult).toBe(true);
   });
+
+  it("should validate field reference arguments", () => {
+    const schema = z.object({
+      name: z.string(),
+      alias: z.string(),
+      age: z.number(),
+    });
+    const genericFn = defineGenericFn({
+      name: "Equals",
+      genericLimit: (t): t is $ZodString | $ZodNumber => true,
+      define: (t) => z.function({ input: [t, t], output: z.boolean() }),
+      implement: (value: string | number, target: string | number) =>
+        value === target,
+    });
+    const validRule = createSingleFilter({
+      name: "Equals",
+      path: ["name"],
+      args: [{ type: "field", path: ["alias"] }],
+    });
+    const invalidRule = createSingleFilter({
+      name: "Equals",
+      path: ["name"],
+      args: [{ type: "field", path: ["age"] }],
+    });
+
+    expect(
+      isValidRule({
+        filterFnList: [genericFn],
+        dataSchema: schema,
+        rule: validRule,
+      }),
+    ).toBe(true);
+    expect(
+      isValidRule({
+        filterFnList: [genericFn],
+        dataSchema: schema,
+        rule: invalidRule,
+      }),
+    ).toBe(false);
+  });
+
+  it("should validate number expressions", () => {
+    const schema = z.object({
+      score: z.number(),
+      multiplier: z.number(),
+      name: z.string(),
+    });
+    const greaterThan = defineTypedFn({
+      name: "Greater than",
+      define: z.function({
+        input: [z.number(), z.number()],
+        output: z.boolean(),
+      }),
+      implement: (value, target) => value > target,
+    });
+
+    expect(
+      isValidRule({
+        filterFnList: [greaterThan],
+        dataSchema: schema,
+        rule: createSingleFilter({
+          name: "Greater than",
+          path: ["score"],
+          args: [
+            {
+              type: "binary",
+              op: "multiply",
+              left: { type: "literal", value: 10 },
+              right: { type: "field", path: ["multiplier"] },
+            },
+          ],
+        }),
+      }),
+    ).toBe(true);
+    expect(
+      isValidRule({
+        filterFnList: [greaterThan],
+        dataSchema: schema,
+        rule: createSingleFilter({
+          name: "Greater than",
+          path: ["score"],
+          args: [
+            {
+              type: "binary",
+              op: "multiply",
+              left: { type: "literal", value: 10 },
+              right: { type: "field", path: ["name"] },
+            },
+          ],
+        }),
+      }),
+    ).toBe(false);
+  });
+
+  it("should validate date offset expressions", () => {
+    const schema = z.object({
+      birthday: z.date(),
+      deadline: z.date(),
+      offsetDays: z.number(),
+      offsetMonths: z.number(),
+      name: z.string(),
+    });
+    const before = defineTypedFn({
+      name: "Before",
+      define: z.function({ input: [z.date(), z.date()], output: z.boolean() }),
+      implement: (value, target) => value.getTime() < target.getTime(),
+    });
+
+    expect(
+      isValidRule({
+        filterFnList: [before],
+        dataSchema: schema,
+        rule: createSingleFilter({
+          name: "Before",
+          path: ["birthday"],
+          args: [
+            {
+              type: "dateOffset",
+              base: { type: "field", path: ["deadline"] },
+              op: "add",
+              amount: { type: "field", path: ["offsetDays"] },
+              unit: "day",
+            },
+          ],
+        }),
+      }),
+    ).toBe(true);
+    expect(
+      isValidRule({
+        filterFnList: [before],
+        dataSchema: schema,
+        rule: createSingleFilter({
+          name: "Before",
+          path: ["birthday"],
+          args: [
+            {
+              type: "dateOffset",
+              base: { type: "field", path: ["deadline"] },
+              op: "add",
+              duration: {
+                years: { type: "literal", value: 1 },
+                months: { type: "field", path: ["offsetMonths"] },
+                days: { type: "field", path: ["offsetDays"] },
+              },
+            },
+          ],
+        }),
+      }),
+    ).toBe(true);
+    expect(
+      isValidRule({
+        filterFnList: [before],
+        dataSchema: schema,
+        rule: createSingleFilter({
+          name: "Before",
+          path: ["birthday"],
+          args: [
+            {
+              type: "dateOffset",
+              base: { type: "field", path: ["deadline"] },
+              op: "add",
+              duration: {
+                days: { type: "field", path: ["name"] },
+              },
+            },
+          ],
+        }),
+      }),
+    ).toBe(false);
+  });
 });
 
 describe("normalizeFilter", () => {

@@ -7,6 +7,8 @@ import {
 import type { FnSchema, GenericFnSchema, StandardFnSchema } from "../types.js";
 import { unreachable } from "../utils.js";
 import type {
+  FilterArgExpression,
+  FilterDateOffsetDuration,
   FilterField,
   FilterGroup,
   FilterGroupInput,
@@ -260,4 +262,179 @@ export const getSchemaAtPath = <T extends $ZodType = $ZodType>(
     result = (result as $ZodObject)._zod.def.shape[key];
   }
   return result as T;
+};
+
+const expressionTypes = new Set([
+  "field",
+  "literal",
+  "binary",
+  "dateOffset",
+] satisfies FilterArgExpression["type"][]);
+
+const dateOffsetDurationKeys = [
+  "years",
+  "months",
+  "days",
+] satisfies (keyof FilterDateOffsetDuration)[];
+
+const isDateOffsetDuration = (
+  value: unknown,
+): value is FilterDateOffsetDuration => {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const duration = value as Partial<
+    Record<keyof FilterDateOffsetDuration, unknown>
+  >;
+  for (const key of dateOffsetDurationKeys) {
+    if (key in duration && !isFilterArgExpression(duration[key])) {
+      return false;
+    }
+  }
+  return dateOffsetDurationKeys.some((key) => key in duration);
+};
+
+export const isFilterArgExpression = (
+  value: unknown,
+): value is FilterArgExpression => {
+  if (!value || typeof value !== "object" || !("type" in value)) {
+    return false;
+  }
+  if (
+    typeof value.type !== "string" ||
+    !expressionTypes.has(value.type as FilterArgExpression["type"])
+  ) {
+    return false;
+  }
+  if (value.type === "field") {
+    return "path" in value && Array.isArray(value.path);
+  }
+  if (value.type === "literal") {
+    return "value" in value;
+  }
+  if (value.type === "binary") {
+    return (
+      "op" in value &&
+      ["add", "subtract", "multiply", "divide"].includes(String(value.op)) &&
+      "left" in value &&
+      isFilterArgExpression(value.left) &&
+      "right" in value &&
+      isFilterArgExpression(value.right)
+    );
+  }
+  if (value.type === "dateOffset") {
+    if (
+      !(
+        "base" in value &&
+        isFilterArgExpression(value.base) &&
+        "op" in value &&
+        ["add", "subtract"].includes(String(value.op))
+      )
+    ) {
+      return false;
+    }
+    if ("duration" in value) {
+      return isDateOffsetDuration(value.duration);
+    }
+    return (
+      "amount" in value &&
+      isFilterArgExpression(value.amount) &&
+      "unit" in value &&
+      value.unit === "day"
+    );
+  }
+  return false;
+};
+
+export const resolveFilterArgExpression = <Data>(
+  expression: FilterArgExpression,
+  data: Data,
+): unknown => {
+  if (expression.type === "field") {
+    return getValueAtPath(data, expression.path);
+  }
+  if (expression.type === "literal") {
+    return expression.value;
+  }
+  if (expression.type === "binary") {
+    const left = resolveFilterArgExpression(expression.left, data);
+    const right = resolveFilterArgExpression(expression.right, data);
+    if (typeof left !== "number" || typeof right !== "number") {
+      throw new Error("Binary filter argument expression requires numbers");
+    }
+    if (expression.op === "add") {
+      return left + right;
+    }
+    if (expression.op === "subtract") {
+      return left - right;
+    }
+    if (expression.op === "multiply") {
+      return left * right;
+    }
+    if (expression.op === "divide") {
+      if (right === 0) {
+        throw new Error("Cannot divide filter argument expression by zero");
+      }
+      return left / right;
+    }
+    unreachable(expression.op);
+  }
+  if (expression.type === "dateOffset") {
+    const base = resolveFilterArgExpression(expression.base, data);
+    if (!(base instanceof Date)) {
+      throw new Error(
+        "Date offset filter argument expression requires a date base",
+      );
+    }
+    const direction = expression.op === "add" ? 1 : -1;
+    const duration = "duration" in expression ? expression.duration : undefined;
+    if (duration) {
+      const result = new Date(base.getTime());
+      for (const key of dateOffsetDurationKeys) {
+        const partExpression = duration[key];
+        if (!partExpression) {
+          continue;
+        }
+        const value = resolveFilterArgExpression(partExpression, data);
+        if (typeof value !== "number") {
+          throw new Error(
+            "Date offset filter argument duration requires numbers",
+          );
+        }
+        const amount = direction * value;
+        if (key === "years") {
+          result.setFullYear(result.getFullYear() + amount);
+        }
+        if (key === "months") {
+          result.setMonth(result.getMonth() + amount);
+        }
+        if (key === "days") {
+          result.setDate(result.getDate() + amount);
+        }
+      }
+      return result;
+    }
+    const legacyAmount = "amount" in expression ? expression.amount : undefined;
+    if (!legacyAmount) {
+      throw new Error(
+        "Date offset filter argument expression requires duration or amount",
+      );
+    }
+    const amount = resolveFilterArgExpression(legacyAmount, data);
+    if (typeof amount !== "number") {
+      throw new Error(
+        "Date offset filter argument expression requires a number amount",
+      );
+    }
+    const offset = amount * 24 * 60 * 60 * 1000;
+    return new Date(base.getTime() + direction * offset);
+  }
+  unreachable(expression);
+};
+
+export const resolveFilterArg = <Data>(arg: unknown, data: Data): unknown => {
+  if (!isFilterArgExpression(arg)) {
+    return arg;
+  }
+  return resolveFilterArgExpression(arg, data);
 };

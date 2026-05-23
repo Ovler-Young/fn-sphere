@@ -9,6 +9,18 @@ export const jaJP = {
   deleteRule: "削除",
   deleteGroup: "グループを削除",
 
+  // Argument input
+  argumentModeValue: "値",
+  argumentModeField: "フィールド",
+  argumentModeExpression: "式",
+  argumentOperatorAdd: "+",
+  argumentOperatorSubtract: "-",
+  argumentOperatorMultiply: "*",
+  argumentOperatorDivide: "/",
+  argumentUnitYear: "年",
+  argumentUnitMonth: "月",
+  argumentUnitDay: "日",
+
   // Filter
   // General Filter
   isNot: "ではない",

@@ -3,6 +3,52 @@ import type { StandardFnSchema } from "../types.js";
 
 export type FilterPath = (string | number)[];
 
+export type FilterFieldArgExpression = {
+  type: "field";
+  path: FilterPath;
+};
+
+export type FilterLiteralArgExpression = {
+  type: "literal";
+  value: unknown;
+};
+
+export type FilterBinaryArgExpression = {
+  type: "binary";
+  op: "add" | "subtract" | "multiply" | "divide";
+  left: FilterArgExpression;
+  right: FilterArgExpression;
+};
+
+export type FilterDateOffsetDuration = {
+  years?: FilterArgExpression;
+  months?: FilterArgExpression;
+  days?: FilterArgExpression;
+};
+
+export type FilterDateOffsetArgExpression = {
+  type: "dateOffset";
+  base: FilterArgExpression;
+  op: "add" | "subtract";
+} & (
+  | {
+      amount: FilterArgExpression;
+      unit: "day";
+      duration?: never;
+    }
+  | {
+      duration: FilterDateOffsetDuration;
+      amount?: never;
+      unit?: never;
+    }
+);
+
+export type FilterArgExpression =
+  | FilterFieldArgExpression
+  | FilterLiteralArgExpression
+  | FilterBinaryArgExpression
+  | FilterDateOffsetArgExpression;
+
 export type FilterId = string & {
   // Type differentiator only.
   __filterId: true;

@@ -35,7 +35,14 @@ export {
 } from "@fn-sphere/core";
 export type {
   FilterField,
+  FilterArgExpression,
+  FilterBinaryArgExpression,
+  FilterDateOffsetArgExpression,
+  FilterDateOffsetDuration,
+  FilterFieldArgExpression,
   FilterGroup,
+  FilterLiteralArgExpression,
+  FilterPath,
   FilterRule,
   FnSchema,
   GenericFnSchema,

@@ -6,7 +6,7 @@ import type {
   StrictFilterGroup,
   StrictSingleFilter,
 } from "./types.js";
-import { and, getValueAtPath, or } from "./utils.js";
+import { and, getValueAtPath, or, resolveFilterArg } from "./utils.js";
 import { getRuleFilterSchema, normalizeFilter } from "./validation.js";
 
 type FilterPredicateOptions<T> = {
@@ -99,7 +99,10 @@ const createSingleRulePredicate = <Data>({
 
   return (data: Data): boolean => {
     const target = getValueAtPath(data, strictSingleRule.path);
-    const result = fnWithImplement(target, ...strictSingleRule.args);
+    const args = strictSingleRule.args.map((arg) =>
+      resolveFilterArg(arg, data),
+    );
+    const result = fnWithImplement(target, ...args);
     return strictSingleRule.invert ? !result : !!result;
   };
 };

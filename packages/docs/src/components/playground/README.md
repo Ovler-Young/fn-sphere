@@ -15,6 +15,7 @@ The playground is used by the docs page at `src/content/docs/reference/playgroun
 ## Key ideas
 
 - Schema is derived from user-defined columns; filters use `findFilterableFields` via `useFilterSphere`.
+- Filter arguments can target fixed values, another compatible field, or a one-level expression such as `age > otherAge`, `age > 10 * factor`, or `birthday before startDate + 1 year 2 months 10 days`.
 - Data lives in a local React state; changing columns resets row values for invalid fields.
 - Minimal seeded rows (5–7) keep the UI fast; users can add/remove rows.
 

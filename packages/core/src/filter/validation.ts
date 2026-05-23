@@ -1,10 +1,12 @@
 import { z } from "zod";
 import { isSameType } from "zod-compare";
-import type { $ZodType } from "zod/v4/core";
+import type { $ZodTuple, $ZodType, $ZodTypes } from "zod/v4/core";
 import { isGenericFilter } from "../fn-helpers.js";
 import type { FnSchema, StandardFnSchema } from "../types.js";
 import { unreachable } from "../utils.js";
 import type {
+  FilterArgExpression,
+  FilterDateOffsetDuration,
   FilterGroup,
   FilterRule,
   SingleFilter,
@@ -17,6 +19,7 @@ import {
   getParametersExceptFirst,
   getSchemaAtPath,
   instantiateGenericFn,
+  isFilterArgExpression,
 } from "./utils.js";
 
 type ValidateSuccess = {
@@ -136,6 +139,16 @@ const validateStandardFnRule = ({
     };
   }
 
+  const expressionResult = validateRuleArgs({
+    dataSchema,
+    requiredParameters,
+    args: rule.args,
+    validateLiteral: !fnSchema.skipValidate,
+  });
+  if (expressionResult) {
+    return expressionResult;
+  }
+
   if (!fnSchema.skipValidate) {
     const parseResult = z.safeParse(requiredParameters, rule.args);
     return parseResult;
@@ -143,6 +156,211 @@ const validateStandardFnRule = ({
   return {
     success: true,
   };
+};
+
+const getSchemaType = (schema: $ZodType) => (schema as $ZodTypes)._zod.def.type;
+
+const numberSchema = z.number();
+const dateSchema = z.date();
+const stringSchema = z.string();
+const booleanSchema = z.boolean();
+
+const dateOffsetDurationKeys = [
+  "years",
+  "months",
+  "days",
+] satisfies (keyof FilterDateOffsetDuration)[];
+
+const isCompatibleExpressionSchema = (
+  targetSchema: $ZodType,
+  expressionSchema: $ZodType,
+) => {
+  return (
+    getSchemaType(targetSchema) === "any" ||
+    getSchemaType(expressionSchema) === "any" ||
+    getSchemaType(targetSchema) === getSchemaType(expressionSchema) ||
+    isSameType(targetSchema, expressionSchema)
+  );
+};
+
+const inferExpressionSchema = ({
+  dataSchema,
+  expression,
+}: {
+  dataSchema: $ZodType;
+  expression: FilterArgExpression;
+}): (ValidateSuccess & { data: $ZodType }) | ValidateError => {
+  if (expression.type === "field") {
+    const fieldSchema = getSchemaAtPath(dataSchema, expression.path);
+    if (!fieldSchema) {
+      return {
+        success: false,
+        error: new Error(
+          `dataSchema not have expression path: ${expression.path.join(".")}`,
+        ),
+      };
+    }
+    return { success: true, data: fieldSchema };
+  }
+  if (expression.type === "literal") {
+    if (typeof expression.value === "number") {
+      return { success: true, data: numberSchema };
+    }
+    if (typeof expression.value === "string") {
+      return { success: true, data: stringSchema };
+    }
+    if (typeof expression.value === "boolean") {
+      return { success: true, data: booleanSchema };
+    }
+    if (expression.value instanceof Date) {
+      return { success: true, data: dateSchema };
+    }
+    return { success: true, data: z.any() };
+  }
+  if (expression.type === "binary") {
+    const left = inferExpressionSchema({
+      dataSchema,
+      expression: expression.left,
+    });
+    if (!left.success) return left;
+    const right = inferExpressionSchema({
+      dataSchema,
+      expression: expression.right,
+    });
+    if (!right.success) return right;
+    if (
+      !isCompatibleExpressionSchema(numberSchema, left.data) ||
+      !isCompatibleExpressionSchema(numberSchema, right.data)
+    ) {
+      return {
+        success: false,
+        error: new Error("binary expression requires number operands"),
+      };
+    }
+    return { success: true, data: numberSchema };
+  }
+  if (expression.type === "dateOffset") {
+    const base = inferExpressionSchema({
+      dataSchema,
+      expression: expression.base,
+    });
+    if (!base.success) return base;
+    if (!isCompatibleExpressionSchema(dateSchema, base.data)) {
+      return {
+        success: false,
+        error: new Error("date offset expression requires a date base"),
+      };
+    }
+    const duration = "duration" in expression ? expression.duration : undefined;
+    if (duration) {
+      for (const key of dateOffsetDurationKeys) {
+        const durationPart = duration[key];
+        if (!durationPart) {
+          continue;
+        }
+        const part = inferExpressionSchema({
+          dataSchema,
+          expression: durationPart,
+        });
+        if (!part.success) return part;
+        if (!isCompatibleExpressionSchema(numberSchema, part.data)) {
+          return {
+            success: false,
+            error: new Error(
+              "date offset expression requires number duration parts",
+            ),
+          };
+        }
+      }
+      return { success: true, data: dateSchema };
+    }
+    const legacyAmount = "amount" in expression ? expression.amount : undefined;
+    if (!legacyAmount) {
+      return {
+        success: false,
+        error: new Error(
+          "date offset expression requires duration or day amount",
+        ),
+      };
+    }
+    const amount = inferExpressionSchema({
+      dataSchema,
+      expression: legacyAmount,
+    });
+    if (!amount.success) return amount;
+    if (!isCompatibleExpressionSchema(numberSchema, amount.data)) {
+      return {
+        success: false,
+        error: new Error(
+          "date offset expression requires a date base and number day amount",
+        ),
+      };
+    }
+    return { success: true, data: dateSchema };
+  }
+  unreachable(expression);
+};
+
+const validateRuleArgs = ({
+  dataSchema,
+  requiredParameters,
+  args,
+  validateLiteral,
+}: {
+  dataSchema: $ZodType;
+  requiredParameters: $ZodTuple;
+  args: unknown[];
+  validateLiteral: boolean;
+}): ValidateSuccess | ValidateError | undefined => {
+  const parameterSchemas = requiredParameters._zod.def.items;
+  let hasExpression = false;
+  for (const [index, arg] of args.entries()) {
+    const parameterSchema = parameterSchemas[index];
+    if (!parameterSchema) {
+      return {
+        success: false,
+        error: new Error(`argument has no parameter at ${index}`),
+      };
+    }
+    if (!isFilterArgExpression(arg)) {
+      if (validateLiteral) {
+        const parseResult = z.safeParse(parameterSchema as $ZodType, arg);
+        if (!parseResult.success) {
+          return parseResult;
+        }
+      }
+      continue;
+    }
+    hasExpression = true;
+    if (arg.type === "literal") {
+      if (validateLiteral) {
+        const parseResult = z.safeParse(parameterSchema as $ZodType, arg.value);
+        if (!parseResult.success) {
+          return parseResult;
+        }
+      }
+      continue;
+    }
+    const expressionResult = inferExpressionSchema({
+      dataSchema,
+      expression: arg,
+    });
+    if (!expressionResult.success) {
+      return expressionResult;
+    }
+    if (
+      !isCompatibleExpressionSchema(
+        parameterSchema as $ZodType,
+        expressionResult.data,
+      )
+    ) {
+      return {
+        success: false,
+        error: new Error(`expression argument not match parameter at ${index}`),
+      };
+    }
+  }
+  return hasExpression ? { success: true } : undefined;
 };
 
 export const validateRule = ({

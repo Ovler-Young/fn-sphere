@@ -9,6 +9,18 @@ export const enUS = {
   deleteRule: "Delete",
   deleteGroup: "Delete Group",
 
+  // Argument input
+  argumentModeValue: "value",
+  argumentModeField: "field",
+  argumentModeExpression: "expression",
+  argumentOperatorAdd: "+",
+  argumentOperatorSubtract: "-",
+  argumentOperatorMultiply: "*",
+  argumentOperatorDivide: "/",
+  argumentUnitYear: "years",
+  argumentUnitMonth: "months",
+  argumentUnitDay: "days",
+
   // Filter
   // General Filter
   equals: "equals",

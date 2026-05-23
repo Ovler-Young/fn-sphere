@@ -230,6 +230,204 @@ describe("createFilterPredicate", () => {
     expect(predicate({ name: "Bob", age: 25 })).toBe(false);
   });
 
+  test("resolves field reference arguments", () => {
+    const extendedSchema = z.object({
+      name: z.string(),
+      alias: z.string(),
+      age: z.number(),
+      minAge: z.number(),
+    });
+    const rule = createSingleFilter({
+      path: ["name"],
+      name: "equals",
+      args: [{ type: "field", path: ["alias"] }],
+    });
+    const predicate = createFilterPredicate({
+      filterFnList,
+      schema: extendedSchema,
+      filterRule: rule,
+      fallbackValue: false,
+    });
+
+    expect(
+      predicate({ name: "Alice", alias: "Alice", age: 30, minAge: 18 }),
+    ).toBe(true);
+    expect(
+      predicate({ name: "Alice", alias: "Bob", age: 30, minAge: 18 }),
+    ).toBe(false);
+  });
+
+  test("resolves numeric binary expression arguments", () => {
+    const numericSchema = z.object({
+      score: z.number(),
+      multiplier: z.number(),
+    });
+    const greaterThan = defineTypedFn({
+      name: "greaterThan",
+      define: z.function({
+        input: [z.number(), z.number()],
+        output: z.boolean(),
+      }),
+      implement: (value, target) => value > target,
+    });
+    const rule = createSingleFilter({
+      path: ["score"],
+      name: "greaterThan",
+      args: [
+        {
+          type: "binary",
+          op: "multiply",
+          left: { type: "literal", value: 10 },
+          right: { type: "field", path: ["multiplier"] },
+        },
+      ],
+    });
+    const predicate = createFilterPredicate({
+      filterFnList: [greaterThan],
+      schema: numericSchema,
+      filterRule: rule,
+      fallbackValue: false,
+    });
+
+    expect(predicate({ score: 31, multiplier: 3 })).toBe(true);
+    expect(predicate({ score: 29, multiplier: 3 })).toBe(false);
+  });
+
+  test("resolves date offset expression arguments", () => {
+    const dateSchema = z.object({
+      birthday: z.date(),
+      deadline: z.date(),
+    });
+    const before = defineTypedFn({
+      name: "before",
+      define: z.function({
+        input: [z.date(), z.date()],
+        output: z.boolean(),
+      }),
+      implement: (value, target) => value.getTime() < target.getTime(),
+    });
+    const rule = createSingleFilter({
+      path: ["birthday"],
+      name: "before",
+      args: [
+        {
+          type: "dateOffset",
+          base: { type: "field", path: ["deadline"] },
+          op: "add",
+          amount: { type: "literal", value: 10 },
+          unit: "day",
+        },
+      ],
+    });
+    const predicate = createFilterPredicate({
+      filterFnList: [before],
+      schema: dateSchema,
+      filterRule: rule,
+      fallbackValue: false,
+    });
+
+    expect(
+      predicate({
+        birthday: new Date("2026-01-10"),
+        deadline: new Date("2026-01-01"),
+      }),
+    ).toBe(true);
+    expect(
+      predicate({
+        birthday: new Date("2026-01-20"),
+        deadline: new Date("2026-01-01"),
+      }),
+    ).toBe(false);
+  });
+
+  test("resolves date offset duration expression arguments", () => {
+    const dateSchema = z.object({
+      birthday: z.date(),
+      deadline: z.date(),
+      offsetMonths: z.number(),
+    });
+    const before = defineTypedFn({
+      name: "before",
+      define: z.function({
+        input: [z.date(), z.date()],
+        output: z.boolean(),
+      }),
+      implement: (value, target) => value.getTime() < target.getTime(),
+    });
+    const rule = createSingleFilter({
+      path: ["birthday"],
+      name: "before",
+      args: [
+        {
+          type: "dateOffset",
+          base: { type: "field", path: ["deadline"] },
+          op: "add",
+          duration: {
+            years: { type: "literal", value: 1 },
+            months: { type: "field", path: ["offsetMonths"] },
+            days: { type: "literal", value: 10 },
+          },
+        },
+      ],
+    });
+    const predicate = createFilterPredicate({
+      filterFnList: [before],
+      schema: dateSchema,
+      filterRule: rule,
+      fallbackValue: false,
+    });
+
+    expect(
+      predicate({
+        birthday: new Date("2027-03-10"),
+        deadline: new Date("2026-01-01"),
+        offsetMonths: 2,
+      }),
+    ).toBe(true);
+    expect(
+      predicate({
+        birthday: new Date("2027-03-20"),
+        deadline: new Date("2026-01-01"),
+        offsetMonths: 2,
+      }),
+    ).toBe(false);
+  });
+
+  test("returns fallbackValue when expression resolution fails", () => {
+    const numericSchema = z.object({
+      score: z.number(),
+    });
+    const greaterThan = defineTypedFn({
+      name: "greaterThan",
+      define: z.function({
+        input: [z.number(), z.number()],
+        output: z.boolean(),
+      }),
+      implement: (value, target) => value > target,
+    });
+    const rule = createSingleFilter({
+      path: ["score"],
+      name: "greaterThan",
+      args: [
+        {
+          type: "binary",
+          op: "divide",
+          left: { type: "literal", value: 10 },
+          right: { type: "literal", value: 0 },
+        },
+      ],
+    });
+    const predicate = createFilterPredicate({
+      filterFnList: [greaterThan],
+      schema: numericSchema,
+      filterRule: rule,
+      fallbackValue: false,
+      errorHandling: { catchError: true, logError: false },
+    });
+
+    expect(predicate({ score: 20 })).toBe(false);
+  });
+
   test("returns fallbackValue when filterRule is undefined", () => {
     const predicateTrue = createFilterPredicate({
       filterFnList,

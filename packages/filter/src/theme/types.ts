@@ -1,4 +1,5 @@
 import type { SingleFilter } from "@fn-sphere/core";
+import type { FilterSchemaContext } from "../hooks/use-filter-schema-context.js";
 import type {
   ButtonHTMLAttributes,
   ComponentType,
@@ -21,7 +22,9 @@ import type { SingleFilterRuleProps } from "../views/single-filter.js";
 
 export type DataInputViewProps = {
   rule: SingleFilter;
+  context: FilterSchemaContext;
   requiredDataSchema: $ZodTuple;
+  fieldSchema?: $ZodType | undefined;
   updateInput: (...input: unknown[]) => void;
 };
 

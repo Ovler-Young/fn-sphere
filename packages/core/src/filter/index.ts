@@ -12,7 +12,10 @@ export {
   createSingleFilter,
   genFilterId,
   getParametersExceptFirst,
+  isFilterArgExpression,
   isEqualPath,
+  resolveFilterArg,
+  resolveFilterArgExpression,
 } from "./utils.js";
 export { isValidRule, normalizeFilter } from "./validation.js";
 export type FilterSphere = ReturnType<typeof createFilterSphere>;
