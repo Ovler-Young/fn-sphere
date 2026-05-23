@@ -254,6 +254,7 @@ const inferExpressionSchema = ({
     const base = inferExpressionSchema({
       dataSchema,
       expression: expression.base,
+      expectedSchema: dateSchema,
     });
     if (!base.success) return base;
     if (!isCompatibleExpressionSchema(dateSchema, base.data)) {

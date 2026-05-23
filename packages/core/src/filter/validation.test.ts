@@ -453,6 +453,26 @@ describe("isValidRule", () => {
         }),
       }),
     ).toBe(false);
+    expect(
+      isValidRule({
+        filterFnList: [before],
+        dataSchema: schema,
+        rule: createSingleFilter({
+          name: "Before",
+          path: ["birthday"],
+          args: [
+            {
+              type: "dateOffset",
+              base: { type: "literal", value: {} },
+              op: "add",
+              duration: {
+                days: { type: "literal", value: 1 },
+              },
+            },
+          ],
+        }),
+      }),
+    ).toBe(false);
   });
 });
 
