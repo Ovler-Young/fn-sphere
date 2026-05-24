@@ -19,13 +19,6 @@ const FILTER_OPERATORS: Record<string, string> = {
   after: ">",
 };
 
-const BINARY_OPERATORS: Record<string, string> = {
-  add: "+",
-  subtract: "-",
-  multiply: "*",
-  divide: "/",
-};
-
 type FilterArgExpressionLike =
   | {
       type: "field";
@@ -37,7 +30,7 @@ type FilterArgExpressionLike =
     }
   | {
       type: "binary";
-      op: keyof typeof BINARY_OPERATORS;
+      op: "add" | "subtract" | "multiply" | "divide";
       left: unknown;
       right: unknown;
     }
@@ -58,6 +51,13 @@ type FilterArgExpressionLike =
       };
     };
 
+const unsupportedComputedFilterNames = new Set([
+  "absoluteDifferenceLessThan",
+  "absoluteDifferenceLessThanOrEqual",
+  "betweenDaysBefore",
+  "betweenDaysBeforeExclusive",
+]);
+
 /**
  * Checks if a filter is unary (takes 0 or 1 parameters)
  *
@@ -65,12 +65,7 @@ type FilterArgExpressionLike =
  */
 const checkUnaryFilter = (filterName: string) => {
   // use `validateRule` from @fn-sphere/core in the future
-  if (
-    filterName === "absoluteDifferenceLessThan" ||
-    filterName === "absoluteDifferenceLessThanOrEqual" ||
-    filterName === "betweenDaysBefore" ||
-    filterName === "betweenDaysBeforeExclusive"
-  ) {
+  if (unsupportedComputedFilterNames.has(filterName)) {
     return false;
   }
   const filterSchema = filterFnList.find((fn) => fn.name === filterName);
@@ -99,9 +94,13 @@ const formatDateLiteral = (value: Date): string => {
   return `sec(${value.getFullYear()}-${value.getMonth() + 1}-${value.getDate()})`;
 };
 
-const renderLiteral = (value: unknown): string => {
+const escapeMeiliString = (value: string): string => {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+};
+
+const renderLiteral = (value: unknown): string | null => {
   if (typeof value === "string") {
-    return `"${value}"`;
+    return `"${escapeMeiliString(value)}"`;
   }
   if (typeof value === "number" || typeof value === "boolean") {
     return String(value);
@@ -110,85 +109,23 @@ const renderLiteral = (value: unknown): string => {
     return formatDateLiteral(value);
   }
   if (Array.isArray(value)) {
-    return `[${value.map(renderLiteral).join(", ")}]`;
+    const items = value.map(renderLiteral);
+    if (items.some((item) => item === null)) {
+      return null;
+    }
+    return `[${items.join(", ")}]`;
   }
-  return String(value);
+  return null;
 };
 
-const renderArg = (value: unknown): string => {
+const renderFilterValue = (value: unknown): string | null => {
   if (!isExpressionLike(value)) {
     return renderLiteral(value);
-  }
-  if (value.type === "field") {
-    return renderPath(value.path);
   }
   if (value.type === "literal") {
     return renderLiteral(value.value);
   }
-  if (value.type === "binary") {
-    const operator = BINARY_OPERATORS[value.op];
-    return `(${renderArg(value.left)} ${operator} ${renderArg(value.right)})`;
-  }
-  if (value.type === "abs") {
-    return `ABS(${renderArg(value.value)})`;
-  }
-
-  const base = renderArg(value.base);
-  const direction = value.op === "add" ? "+" : "-";
-  if ("duration" in value && value.duration) {
-    const durationParts = [
-      ["years", "years"],
-      ["months", "months"],
-      ["days", "days"],
-    ] as const;
-    const parts = durationParts
-      .map(([key, unit]) => {
-        const amount = value.duration?.[key];
-        return amount === undefined
-          ? undefined
-          : `${renderArg(amount)} ${unit}`;
-      })
-      .filter((part) => part !== undefined);
-    return `DATE_OFFSET(${base}, ${direction} ${parts.join(", ")})`;
-  }
-  return `DATE_OFFSET(${base}, ${direction} ${renderArg(value.amount)} days)`;
-};
-
-const transformAbsoluteDifferenceFilter = (
-  path: string,
-  filter: SingleFilter,
-  operator: "<" | "<=",
-): string | null => {
-  const other = filter.args[0];
-  const threshold = filter.args[1];
-  if (other === undefined || threshold === undefined) {
-    return null;
-  }
-  return `ABS(${path} - ${renderArg(other)}) ${operator} ${renderArg(threshold)}`;
-};
-
-const transformBetweenDaysBeforeFilter = (
-  path: string,
-  filter: SingleFilter,
-  inclusive: boolean,
-): string | null => {
-  const baseDate = filter.args[0];
-  const minDays = filter.args[1];
-  const maxDays = filter.args[2];
-  if (
-    baseDate === undefined ||
-    minDays === undefined ||
-    maxDays === undefined
-  ) {
-    return null;
-  }
-
-  const lowerOperator = inclusive ? ">=" : ">";
-  const upperOperator = inclusive ? "<=" : "<";
-  const base = renderArg(baseDate);
-  const lowerBound = `DATE_OFFSET(${base}, - ${renderArg(maxDays)} days)`;
-  const upperBound = `DATE_OFFSET(${base}, - ${renderArg(minDays)} days)`;
-  return `${path} ${lowerOperator} ${lowerBound} AND ${path} ${upperOperator} ${upperBound}`;
+  return null;
 };
 
 function transformSingleFilter(filter: SingleFilter): string | null {
@@ -201,17 +138,8 @@ function transformSingleFilter(filter: SingleFilter): string | null {
     return null;
   }
 
-  if (filter.name === "absoluteDifferenceLessThan") {
-    return transformAbsoluteDifferenceFilter(path, filter, "<");
-  }
-  if (filter.name === "absoluteDifferenceLessThanOrEqual") {
-    return transformAbsoluteDifferenceFilter(path, filter, "<=");
-  }
-  if (filter.name === "betweenDaysBefore") {
-    return transformBetweenDaysBeforeFilter(path, filter, true);
-  }
-  if (filter.name === "betweenDaysBeforeExclusive") {
-    return transformBetweenDaysBeforeFilter(path, filter, false);
+  if (unsupportedComputedFilterNames.has(filter.name)) {
+    return null;
   }
 
   if (operator === undefined) {
@@ -222,21 +150,16 @@ function transformSingleFilter(filter: SingleFilter): string | null {
     return null;
   }
 
-  // Handle array values for IN/NOT IN operators
-  if (Array.isArray(value)) {
-    return `${path} ${operator} ${renderLiteral(value)}`;
-  }
-
   if (value === undefined) {
     return `${path} ${operator}`;
   }
 
-  // Handle string values
-  if (typeof value === "string") {
-    return `${path} ${operator} "${value}"`;
+  const renderedValue = renderFilterValue(value);
+  if (renderedValue === null) {
+    return null;
   }
 
-  return `${path} ${operator} ${renderArg(value)}`;
+  return `${path} ${operator} ${renderedValue}`;
 }
 
 function transformFilterGroup(filterGroup: FilterGroup): string | null {
