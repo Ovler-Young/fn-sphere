@@ -1,4 +1,4 @@
-import type { SingleFilter } from "@fn-sphere/core";
+import type { SingleFilter, StandardFnSchema } from "@fn-sphere/core";
 import type {
   ButtonHTMLAttributes,
   ComponentType,
@@ -18,25 +18,38 @@ import type { FilterSelectProps } from "../views/filter-select.js";
 import type { RuleJoinerProps } from "../views/rule-joiner.js";
 import type { SingleFilterContainerProps } from "../views/single-filter-container.js";
 import type { SingleFilterRuleProps } from "../views/single-filter.js";
+import type { FilterSchemaContext } from "../hooks/use-filter-schema-context.js";
 
 export type DataInputViewProps = {
   rule: SingleFilter;
+  context: FilterSchemaContext;
+  fieldSchema: $ZodType | undefined;
+  selectedFilter: StandardFnSchema | undefined;
   requiredDataSchema: $ZodTuple;
   updateInput: (...input: unknown[]) => void;
 };
 
+export type DataInputViewMatchContext = {
+  rule: SingleFilter | undefined;
+  context: FilterSchemaContext | undefined;
+  fieldSchema: $ZodType | undefined;
+  selectedFilter: StandardFnSchema | undefined;
+  parameterSchemas: $ZodTuple;
+  requiredDataSchema: $ZodTuple;
+};
+
+export type DataInputViewMatchInput = DataInputViewMatchContext & $ZodTuple;
+
+export type DataInputViewMatchFn = (
+  // The first parameter is both the old tuple schema argument and the new object context.
+  context: DataInputViewMatchInput,
+  // The second parameter is kept for the previous `(parameterSchemas, fieldSchema)` API.
+  fieldSchema?: $ZodType,
+) => boolean;
+
 export type DataInputViewSpec = {
   name: string;
-  match:
-    | []
-    | [$ZodType, ...$ZodType[]]
-    | $ZodTuple
-    | ((
-        // The first parameter is the fn schema required parameters except the first one
-        parameterSchemas: $ZodTuple,
-        // The second parameter is the field schema. In most cases, you don't need to use it.
-        fieldSchema?: $ZodType,
-      ) => boolean);
+  match: [] | [$ZodType, ...$ZodType[]] | $ZodTuple | DataInputViewMatchFn;
   view: ComponentType<DataInputViewProps>;
   meta?: Record<string, unknown>;
 };

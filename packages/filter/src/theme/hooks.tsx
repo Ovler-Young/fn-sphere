@@ -2,7 +2,12 @@ import { isSameType } from "@fn-sphere/core";
 import { type ComponentType } from "react";
 import { $ZodTuple, type $ZodType } from "zod/v4/core";
 import { useFilterTheme } from "./context.js";
-import type { DataInputViewProps, FilterTheme } from "./types.js";
+import type {
+  DataInputViewMatchContext,
+  DataInputViewMatchInput,
+  DataInputViewProps,
+  FilterTheme,
+} from "./types.js";
 
 /**
  * @deprecated use `useView` instead
@@ -29,14 +34,30 @@ export const useView = <T extends keyof FilterTheme>(type: T) => {
 export const useDataInputView = (
   fnParamsSchema?: $ZodTuple,
   fieldSchema?: $ZodType,
+  matchContext?: Omit<
+    Partial<DataInputViewMatchContext>,
+    "fieldSchema" | "parameterSchemas" | "requiredDataSchema"
+  >,
 ): ComponentType<DataInputViewProps> => {
   const dataInputViews = useView("dataInputViews");
   if (!fnParamsSchema) {
     return () => null;
   }
+  const fullMatchContext: DataInputViewMatchContext = {
+    rule: matchContext?.rule,
+    context: matchContext?.context,
+    fieldSchema,
+    selectedFilter: matchContext?.selectedFilter,
+    parameterSchemas: fnParamsSchema,
+    requiredDataSchema: fnParamsSchema,
+  };
+  const matchInput: DataInputViewMatchInput = Object.assign(
+    Object.create(fnParamsSchema) as object,
+    fullMatchContext,
+  ) as DataInputViewMatchInput;
   const targetSpec = dataInputViews.find((spec) => {
     if (typeof spec.match === "function") {
-      return spec.match(fnParamsSchema, fieldSchema);
+      return spec.match(matchInput, fieldSchema);
     }
     if (Array.isArray(spec.match)) {
       return isSameType(
