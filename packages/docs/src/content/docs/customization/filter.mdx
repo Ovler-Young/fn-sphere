@@ -116,6 +116,51 @@ export default function AdvancedFilter() {
 }
 ```
 
+## Cross-field Filter Rules
+
+Some preset filters accept another compatible field as an argument, so column-to-column checks can be represented without writing a custom filter. The same rule tree can still be passed to local predicates and backend transformers.
+
+```ts
+import { createFilterGroup, createSingleFilter } from "@fn-sphere/filter";
+
+const clinicalRule = createFilterGroup({
+  op: "and",
+  conditions: [
+    // Column A equals column B.
+    createSingleFilter({
+      path: ["admissionDepartment"],
+      name: "equals",
+      args: [{ type: "field", path: ["dischargeDepartment"] }],
+    }),
+    // Absolute numeric difference: abs(discharge systolic - admission systolic) < 10.
+    createSingleFilter({
+      path: ["systolicAtDischarge"],
+      name: "absoluteDifferenceLessThan",
+      args: [{ type: "field", path: ["systolicAtAdmission"] }, 10],
+    }),
+    // Admission date is 7 to 14 days before discharge date, inclusive.
+    createSingleFilter({
+      path: ["admissionDate"],
+      name: "betweenDaysBefore",
+      args: [{ type: "field", path: ["dischargeDate"] }, 7, 14],
+    }),
+    // Existing contains and notContains filters still cover string or array fields.
+    createSingleFilter({
+      path: ["diagnosisTags"],
+      name: "contains",
+      args: ["cardiology"],
+    }),
+    createSingleFilter({
+      path: ["notes"],
+      name: "notContains",
+      args: ["screening only"],
+    }),
+  ],
+});
+```
+
+The default data input only offers field mode when a compatible field exists for that argument. Backend examples can transform these rules to SQL and UglySearch. Meilisearch cannot express computed comparisons such as `ABS(...)` or date offsets, so the example transformer omits those unsupported computed conditions while keeping simple filters such as `equals`, `contains`, and `notContains`.
+
 ## Define a Generic Filter
 
 Generic filters work across multiple data types, unlike custom filters that are bound to specific schemas. For example, the built-in `equals` filter works with strings, numbers, booleans, and union types without needing separate implementations.

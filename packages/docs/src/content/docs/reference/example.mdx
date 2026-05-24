@@ -40,6 +40,8 @@ import { PopoverFilter } from "~/components/examples/popover-filter/index.tsx";
 
 Filter Sphere is easy to integrate with backend systems. This example demonstrates converting filter rules into SQL WHERE clauses and [Meilisearch](https://www.meilisearch.com/) queries in real time.
 
+The transformer example also covers field arguments and computed expressions such as `ABS(columnA - columnB) < N` and "date A is N to M days before date B". SQL can render those computed comparisons directly. Meilisearch does not support these computed filters, so the example omits unsupported computed conditions and keeps simple conditions such as equality, contains, and not contains.
+
 import { NeoFilter } from "~/components/examples/neo-uglysearch/index.tsx";
 
 <div className="not-content">
