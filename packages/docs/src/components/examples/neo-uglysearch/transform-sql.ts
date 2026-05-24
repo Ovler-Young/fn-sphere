@@ -19,10 +19,9 @@ const SQL_OPERATORS: Record<string, string> = {
 };
 
 const PATIENT_FILTER_NAMES = {
-  lessThanSelectedField: "less than selected field",
-  absoluteDifferenceAtMost:
-    "absolute difference from selected field is at most",
-  daysBeforeBetween: "days before selected date between",
+  lessThanField: "less than field",
+  absoluteDifferenceAtMost: "absolute difference from field is at most",
+  daysBeforeBetween: "days before date between",
 } as const;
 
 type FieldArgLike = {
@@ -128,7 +127,7 @@ function transformSingleFilter(filter: SingleFilter): string | null {
     return null;
   }
 
-  if (filter.name === PATIENT_FILTER_NAMES.lessThanSelectedField) {
+  if (filter.name === PATIENT_FILTER_NAMES.lessThanField) {
     return value === undefined ? null : `${path} < ${renderSQLArg(value)}`;
   }
   if (filter.name === PATIENT_FILTER_NAMES.absoluteDifferenceAtMost) {

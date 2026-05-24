@@ -21,9 +21,9 @@ const FILTER_OPERATORS: Record<string, string> = {
 };
 
 const unsupportedComputedFilterNames = new Set([
-  "less than selected field",
-  "absolute difference from selected field is at most",
-  "days before selected date between",
+  "less than field",
+  "absolute difference from field is at most",
+  "days before date between",
 ]);
 
 type FieldArgLike = {

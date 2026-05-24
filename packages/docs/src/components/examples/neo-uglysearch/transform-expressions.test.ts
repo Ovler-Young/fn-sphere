@@ -27,17 +27,17 @@ describe("neo uglysearch field argument transformers", () => {
       conditions: [
         createSingleFilter({
           path: ["dischargeSystolic"],
-          name: "less than selected field",
+          name: "less than field",
           args: [{ type: "field", path: ["admissionSystolic"] }],
         }),
         createSingleFilter({
           path: ["dischargeWeight"],
-          name: "absolute difference from selected field is at most",
+          name: "absolute difference from field is at most",
           args: [{ type: "field", path: ["admissionWeight"] }, 5],
         }),
         createSingleFilter({
           path: ["admissionDate"],
-          name: "days before selected date between",
+          name: "days before date between",
           args: [{ type: "field", path: ["dischargeDate"] }, 1, 14],
         }),
       ],
@@ -64,7 +64,7 @@ describe("neo uglysearch field argument transformers", () => {
         }),
         createSingleFilter({
           path: ["dischargeWeight"],
-          name: "absolute difference from selected field is at most",
+          name: "absolute difference from field is at most",
           args: [{ type: "field", path: ["admissionWeight"] }, 5],
         }),
       ],

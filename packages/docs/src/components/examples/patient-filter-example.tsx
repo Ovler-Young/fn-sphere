@@ -8,11 +8,12 @@ import {
   FilterBuilder,
   FilterSphereProvider,
   type FnSchema,
+  presetFilter,
   presetTheme,
   useFilterSphere,
   useView,
 } from "@fn-sphere/filter";
-import { useMemo, type CSSProperties } from "react";
+import { useMemo } from "react";
 import { z } from "zod";
 import type { $ZodTypes } from "zod/v4/core";
 import { Table } from "~/components/table";
@@ -37,16 +38,10 @@ type PatientFieldArg = {
 const patientFields = Object.keys(patientSchema.shape) as PatientField[];
 
 const patientFilterNames = {
-  lessThanSelectedField: "less than selected field",
-  absoluteDifferenceAtMost:
-    "absolute difference from selected field is at most",
-  daysBeforeBetween: "days before selected date between",
+  lessThanField: "less than field",
+  absoluteDifferenceAtMost: "absolute difference from field is at most",
+  daysBeforeBetween: "days before date between",
 } as const;
-
-const patientControlStyle = {
-  minWidth: 0,
-  maxWidth: "min(100%, 220px)",
-} satisfies CSSProperties;
 
 const date = (value: string) => new Date(value);
 
@@ -358,12 +353,11 @@ const FieldArgSelect = ({
 const numberFieldInput: DataInputViewSpec = {
   name: "patient number field input",
   match: ({ selectedFilter }) =>
-    selectedFilter?.name === patientFilterNames.lessThanSelectedField,
+    selectedFilter?.name === patientFilterNames.lessThanField,
   view: function View(props) {
     const { context, fieldSchema, rule, updateInput } = props;
     return (
       <>
-        <span>field</span>
         <FieldArgSelect
           context={context}
           fieldSchema={fieldSchema}
@@ -390,7 +384,6 @@ const numberFieldThresholdInput: DataInputViewSpec = {
     const threshold = getNumberValue(rule.args[1], 5);
     return (
       <>
-        <span>field</span>
         <FieldArgSelect
           context={context}
           fieldSchema={fieldSchema}
@@ -427,7 +420,6 @@ const dateRangeComparisonInput: DataInputViewSpec = {
     const maxDays = getNumberValue(rule.args[2], 14);
     return (
       <>
-        <span>field</span>
         <FieldArgSelect
           context={context}
           fieldSchema={fieldSchema}
@@ -481,15 +473,6 @@ const patientFilterTheme = createFilterTheme({
         }}
       />
     ),
-    select: ({ style, ...props }) => (
-      <select
-        {...props}
-        style={{
-          ...patientControlStyle,
-          ...style,
-        }}
-      />
-    ),
   },
   templates: {
     SingleFilterContainer: ({ style, ...props }) => {
@@ -505,6 +488,7 @@ const patientFilterTheme = createFilterTheme({
             flexWrap: "wrap",
             minWidth: 0,
             maxWidth: "100%",
+            overflowX: "auto",
             ...style,
           }}
         />
@@ -520,7 +504,7 @@ const patientFilterTheme = createFilterTheme({
 
 const patientCustomFilters: FnSchema[] = [
   defineTypedFn({
-    name: patientFilterNames.lessThanSelectedField,
+    name: patientFilterNames.lessThanField,
     define: z.function({
       input: [z.number(), z.number()],
       output: z.boolean(),
@@ -569,7 +553,7 @@ const customDefaultRule = createFilterGroup({
     }),
     createSingleFilter({
       path: ["dischargeSystolic"],
-      name: patientFilterNames.lessThanSelectedField,
+      name: patientFilterNames.lessThanField,
       args: [toFieldArg("admissionSystolic")],
     }),
     createSingleFilter({
@@ -584,7 +568,7 @@ export function PatientCustomFilterExample() {
   const { context, predicate } = useFilterSphere({
     schema: patientSchema,
     defaultRule: customDefaultRule,
-    filterFnList: patientCustomFilters,
+    filterFnList: [...presetFilter, ...patientCustomFilters],
   });
   const filteredData = patientData.filter(predicate);
 
