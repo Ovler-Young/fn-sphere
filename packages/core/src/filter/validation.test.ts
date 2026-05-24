@@ -275,7 +275,7 @@ describe("isValidRule", () => {
     ).toBe(true);
   });
 
-  it("should reject incompatible field expression args", () => {
+  it("should allow field expression args with existing field paths", () => {
     const dataSchema = z.object({
       target: z.number(),
       other: z.string(),
@@ -300,6 +300,43 @@ describe("isValidRule", () => {
         dataSchema,
         rule,
       }),
+    ).toBe(true);
+    expect(
+      normalizeFilter({
+        filterFnList: [standardFn],
+        dataSchema,
+        rule,
+      }),
+    ).toEqual({
+      ...rule,
+      invert: false,
+    });
+  });
+
+  it("should reject field expression args for missing data paths", () => {
+    const dataSchema = z.object({
+      target: z.number(),
+    });
+    const rule = createSingleFilter({
+      name: "Less than",
+      path: ["target"],
+      args: [{ type: "field", path: ["missing"] }],
+    });
+    const standardFn = defineTypedFn({
+      name: "Less than",
+      define: z.function({
+        input: [z.number(), z.number()],
+        output: z.boolean(),
+      }),
+      implement: (value, target) => value < target,
+    });
+
+    expect(
+      isValidRule({
+        filterFnList: [standardFn],
+        dataSchema,
+        rule,
+      }),
     ).toBe(false);
     expect(
       normalizeFilter({
@@ -308,6 +345,34 @@ describe("isValidRule", () => {
         rule,
       }),
     ).toBeUndefined();
+  });
+
+  it("should not validate field expression paths for skip validate filters", () => {
+    const dataSchema = z.object({
+      target: z.number(),
+    });
+    const rule = createSingleFilter({
+      name: "Custom compare",
+      path: ["target"],
+      args: [{ type: "field", path: ["missing"] }],
+    });
+    const standardFn = defineTypedFn({
+      name: "Custom compare",
+      define: z.function({
+        input: [z.number(), z.number()],
+        output: z.boolean(),
+      }),
+      implement: (value, target) => value < target,
+      skipValidate: true,
+    });
+
+    expect(
+      isValidRule({
+        filterFnList: [standardFn],
+        dataSchema,
+        rule,
+      }),
+    ).toBe(true);
   });
 
   it("should keep ordinary object args on the old validation path", () => {

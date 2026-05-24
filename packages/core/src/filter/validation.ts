@@ -137,16 +137,13 @@ const validateStandardFnRule = ({
     };
   }
 
-  if (!fnSchema.skipValidate) {
-    return validateRuleArgs({
-      fnSchema,
-      dataSchema,
-      requiredParameters,
-      rule,
-    });
+  if (fnSchema.skipValidate) {
+    return {
+      success: true,
+    };
   }
+
   return validateRuleArgs({
-    fnSchema,
     dataSchema,
     requiredParameters,
     rule,
@@ -154,21 +151,17 @@ const validateStandardFnRule = ({
 };
 
 const validateRuleArgs = ({
-  fnSchema,
   dataSchema,
   requiredParameters,
   rule,
 }: {
-  fnSchema: StandardFnSchema;
   dataSchema: $ZodType;
   requiredParameters: ReturnType<typeof getParametersExceptFirst>;
   rule: StrictSingleFilter;
 }): ValidateSuccess | ValidateError => {
   const parameterSchemas = requiredParameters._zod.def.items;
   const restSchema = requiredParameters._zod.def.rest;
-  const parseResult = fnSchema.skipValidate
-    ? undefined
-    : z.safeParse(requiredParameters, rule.args);
+  const parseResult = z.safeParse(requiredParameters, rule.args);
   if (parseResult?.success) {
     return parseResult;
   }
@@ -206,9 +199,6 @@ const validateRuleArgs = ({
     }
 
     if (!isFilterArgExpression(arg)) {
-      if (fnSchema.skipValidate) {
-        continue;
-      }
       return directParseResult;
     }
 
@@ -217,14 +207,6 @@ const validateRuleArgs = ({
       return {
         success: false,
         error: new Error(`dataSchema not have path: ${arg.path.join(".")}`),
-      };
-    }
-    if (!isSameType(parameterSchema, fieldSchema)) {
-      return {
-        success: false,
-        error: new Error(
-          `field expression schema not match rule.args[${index}] parameter schema: ${arg.path.join(".")}`,
-        ),
       };
     }
   }
