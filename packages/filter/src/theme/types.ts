@@ -41,10 +41,12 @@ export type DataInputViewMatchContext = {
 export type DataInputViewMatchInput = DataInputViewMatchContext & $ZodTuple;
 
 export type DataInputViewMatchFn = (
-  // The first parameter is both the old tuple schema argument and the new object context.
-  context: DataInputViewMatchInput,
+  // The first parameter is kept as the real tuple schema from the previous API.
+  parameterSchemas: DataInputViewMatchInput,
   // The second parameter is kept for the previous `(parameterSchemas, fieldSchema)` API.
   fieldSchema?: $ZodType,
+  // Additional context is available to custom views without replacing the tuple argument.
+  context?: DataInputViewMatchContext,
 ) => boolean;
 
 export type DataInputViewSpec = {

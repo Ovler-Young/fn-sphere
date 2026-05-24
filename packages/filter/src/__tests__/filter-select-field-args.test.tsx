@@ -2,7 +2,6 @@ import {
   createFilterGroup,
   createSingleFilter,
   defineTypedFn,
-  type FilterField,
   type FilterGroup,
 } from "@fn-sphere/core";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
@@ -52,26 +51,13 @@ const fallbackNumberFilter = defineTypedFn({
   implement: (value) => value > 0,
 });
 
-const fallbackStringFilter = defineTypedFn({
-  name: "fallbackStringFilter",
+const contextualInputFilter = defineTypedFn({
+  name: "contextualInputFilter",
   define: z.function({
-    input: [z.string()],
+    input: [z.number(), z.object({ target: z.number() })],
     output: z.boolean(),
   }),
-  implement: (value) => value.length > 0,
-});
-
-const dataInputTheme = createFilterTheme({
-  dataInputViews: [
-    {
-      name: "field arg input",
-      match: ({ selectedFilter }) =>
-        selectedFilter?.name === fieldArgFilter.name,
-      view: function FieldArgInput() {
-        return <input aria-label="field arg input" />;
-      },
-    } satisfies DataInputViewSpec,
-  ],
+  implement: (value, target) => value < target.target,
 });
 
 function getFirstRule(filterRule: FilterGroup) {
@@ -82,9 +68,12 @@ function getFirstRule(filterRule: FilterGroup) {
   return rule;
 }
 
-function TestFilterSelect({ schema }: { schema: z.ZodObject }) {
+function TestFilterSelect() {
   const { filterRule, context } = useFilterSphere({
-    schema,
+    schema: z.object({
+      left: z.number(),
+      label: z.string(),
+    }),
     filterFnList: [fieldArgFilter],
     defaultRule,
   });
@@ -96,32 +85,87 @@ function TestFilterSelect({ schema }: { schema: z.ZodObject }) {
   );
 }
 
-function TestFilterDataInput({ schema }: { schema: z.ZodObject }) {
+function TestFilterDataInput({ theme }: { theme: ReturnType<typeof createFilterTheme> }) {
   const { filterRule, context } = useFilterSphere({
-    schema,
-    filterFnList: [fieldArgFilter],
-    defaultRule,
+    schema: z.object({
+      left: z.number(),
+      label: z.string(),
+    }),
+    filterFnList: [contextualInputFilter],
+    defaultRule: () =>
+      createFilterGroup({
+        op: "and",
+        conditions: [
+          createSingleFilter({
+            path: ["left"],
+            name: contextualInputFilter.name,
+          }),
+        ],
+      }),
   });
 
   return (
-    <FilterSphereProvider context={context} theme={dataInputTheme}>
+    <FilterSphereProvider context={context} theme={theme}>
       <FilterDataInput rule={getFirstRule(filterRule)} />
     </FilterSphereProvider>
   );
 }
 
-function TestFieldSwitcher({
-  onRuleChange,
+function TestFieldArgDataInput({ theme }: { theme: ReturnType<typeof createFilterTheme> }) {
+  const { filterRule, context } = useFilterSphere({
+    schema: z.object({
+      left: z.number(),
+      label: z.string(),
+    }),
+    filterFnList: [fieldArgFilter],
+    defaultRule,
+  });
+
+  return (
+    <FilterSphereProvider context={context} theme={theme}>
+      <FilterDataInput rule={getFirstRule(filterRule)} />
+    </FilterSphereProvider>
+  );
+}
+
+function FieldSwitcher({
+  rule,
 }: {
-  onRuleChange: (rule: FilterGroup) => void;
+  rule: ReturnType<typeof createSingleFilter>;
 }) {
+  const { fieldOptions, selectedField, setField } = useFilterSelect(rule);
+  const options = fieldOptions.map(({ value }) => value);
+  const fieldKey = (field: { path: (string | number)[] }) =>
+    field.path.join(".");
+  return (
+    <select
+      aria-label="field"
+      value={selectedField ? fieldKey(selectedField) : ""}
+      onChange={(event) => {
+        const field = options.find(
+          (option) => fieldKey(option) === event.target.value,
+        );
+        if (field) {
+          setField(field);
+        }
+      }}
+    >
+      {options.map((field) => (
+        <option key={fieldKey(field)} value={fieldKey(field)}>
+          {fieldKey(field)}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function TestFieldSwitcher({ onRuleChange }: { onRuleChange: (rule: FilterGroup) => void }) {
   const { filterRule, context } = useFilterSphere({
     schema: z.object({
       left: z.number(),
       right: z.number(),
-      label: z.string(),
     }),
-    filterFnList: [fieldArgFilter, fallbackNumberFilter, fallbackStringFilter],
+    filterFnList: [fieldArgFilter, fallbackNumberFilter],
     defaultRule,
     onRuleChange: ({ filterRule: nextRule }) => {
       onRuleChange(nextRule);
@@ -129,98 +173,90 @@ function TestFieldSwitcher({
   });
   const rule = getFirstRule(filterRule);
 
-  function FieldSwitcher() {
-    const { fieldOptions, selectedField, setField } = useFilterSelect(rule);
-    const options = fieldOptions.map(({ value }) => value);
-    const fieldKey = (field: FilterField) => field.path.join(".");
-    return (
-      <select
-        aria-label="field"
-        value={selectedField ? fieldKey(selectedField) : ""}
-        onChange={(event) => {
-          const field = options.find(
-            (option) => fieldKey(option) === event.target.value,
-          );
-          if (field) {
-            setField(field);
-          }
-        }}
-      >
-        {options.map((field) => (
-          <option key={fieldKey(field)} value={fieldKey(field)}>
-            {fieldKey(field)}
-          </option>
-        ))}
-      </select>
-    );
-  }
-
   return (
     <FilterSphereProvider context={context}>
-      <FieldSwitcher />
+      <FieldSwitcher rule={rule} />
     </FilterSphereProvider>
   );
 }
 
 describe("FilterSelect field args", () => {
-  it("hides field-arg filters when the current field has no compatible right field", () => {
-    render(
-      <TestFilterSelect
-        schema={z.object({
-          left: z.number(),
-          label: z.string(),
-        })}
-      />,
-    );
-
-    expect(screen.getByLabelText("filter").textContent).not.toContain(
-      fieldArgFilter.name,
-    );
-  });
-
-  it("shows field-arg filters when the current field has a compatible right field", () => {
-    render(
-      <TestFilterSelect
-        schema={z.object({
-          left: z.number(),
-          right: z.number(),
-        })}
-      />,
-    );
+  it("keeps field-arg filters selectable in the shared filter select", () => {
+    render(<TestFilterSelect />);
 
     expect(screen.getByLabelText("filter").textContent).toContain(
       fieldArgFilter.name,
     );
   });
 
-  it("does not render data input for unavailable filters", () => {
-    render(
-      <TestFilterDataInput
-        schema={z.object({
-          left: z.number(),
-          label: z.string(),
-        })}
-      />,
-    );
+  it("passes selected filter context to custom data input view matching", () => {
+    const match = vi.fn((parameterSchemas, fieldSchema, context) => {
+      expect(parameterSchemas._zod.def.items).toHaveLength(1);
+      expect(fieldSchema?._zod.def.type).toBe("number");
+      return (
+        context?.selectedFilter?.name === fieldArgFilter.name &&
+        context.context?.filterableFields.length === 2
+      );
+    });
+    const theme = createFilterTheme({
+      dataInputViews: [
+        {
+          name: "field arg match probe",
+          match,
+          view: function FieldArgInput() {
+            return <input aria-label="field arg input" />;
+          },
+        } satisfies DataInputViewSpec,
+      ],
+    });
 
-    expect(screen.queryByLabelText("field arg input")).toBeNull();
+    render(<TestFieldArgDataInput theme={theme} />);
+
+    expect(match).toHaveBeenCalled();
   });
 
-  it("falls back when changing to a field where the current filter is unavailable", () => {
+  it("passes selected filter context to custom data input view props", () => {
+    const theme = createFilterTheme({
+      dataInputViews: [
+        {
+          name: "context input",
+          match: (_parameterSchemas, _fieldSchema, context) =>
+            context?.selectedFilter?.name === contextualInputFilter.name,
+          view: function ContextInput({ selectedFilter, context }) {
+            return (
+              <input
+                aria-label="context input"
+                data-filter={selectedFilter?.name}
+                data-field-count={context.filterableFields.length}
+              />
+            );
+          },
+        } satisfies DataInputViewSpec,
+      ],
+    });
+
+    render(<TestFilterDataInput theme={theme} />);
+
+    const input = screen.getByLabelText("context input");
+    expect(input.getAttribute("data-filter")).toBe(contextualInputFilter.name);
+    expect(Number(input.getAttribute("data-field-count"))).toBeGreaterThan(0);
+  });
+
+  it("retains field-arg filters when switching fields through shared selection", () => {
     const onRuleChange = vi.fn();
 
     render(<TestFieldSwitcher onRuleChange={onRuleChange} />);
 
     fireEvent.change(screen.getByLabelText("field"), {
-      target: { value: "label" },
+      target: { value: "right" },
     });
 
     expect(onRuleChange).toHaveBeenCalledTimes(1);
     const nextRule = onRuleChange.mock.calls[0]?.[0];
     expect(nextRule?.conditions[0]).toMatchObject({
       type: "Filter",
-      path: ["label"],
-      name: fallbackStringFilter.name,
+      path: ["right"],
+      name: fieldArgFilter.name,
       args: [],
     });
   });

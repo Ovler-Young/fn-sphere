@@ -51,13 +51,13 @@ export const useDataInputView = (
     parameterSchemas: fnParamsSchema,
     requiredDataSchema: fnParamsSchema,
   };
-  const matchInput: DataInputViewMatchInput = Object.assign(
-    Object.create(fnParamsSchema) as object,
+  const matchInput = Object.assign(
+    fnParamsSchema,
     fullMatchContext,
   ) as DataInputViewMatchInput;
   const targetSpec = dataInputViews.find((spec) => {
     if (typeof spec.match === "function") {
-      return spec.match(matchInput, fieldSchema);
+      return spec.match(matchInput, fieldSchema, fullMatchContext);
     }
     if (Array.isArray(spec.match)) {
       return isSameType(
