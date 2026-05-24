@@ -1,0 +1,20 @@
+---
+title: Patient Custom Filter Example
+description: A patient table using custom filters and custom data inputs
+---
+
+This example uses only custom filters and custom data input views to express patient field-to-field checks. It does not rely on preset cross-field filters or expression inputs.
+
+The dataset includes patient ID, admission and discharge dates, admission and discharge systolic blood pressure, and admission and discharge weight.
+
+Useful filters to try:
+
+- `date field is days before another date field`: admission date is 1 to 14 days before discharge date
+- `numeric field is less than another field`: discharge systolic is less than admission systolic
+- `numeric field absolute difference is at most`: discharge weight differs from admission weight by at most 5
+
+import { PatientCustomFilterExample } from "~/components/examples/patient-custom-filter-example.tsx";
+
+<div className="not-content">
+  <PatientCustomFilterExample client:load />
+</div>
