@@ -1,12 +1,18 @@
 import {
+  getParametersExceptFirst,
   isEqualPath,
   isSameType,
   type FilterField,
   type SingleFilter,
   type StandardFnSchema,
 } from "@fn-sphere/core";
+import type { $ZodType } from "zod/v4/core";
 import { useFilterRule } from "./use-filter-rule.js";
 import { useFilterSchemaContext } from "./use-filter-schema-context.js";
+
+type FieldArgFilterMeta = {
+  fieldArgParameters?: unknown;
+};
 
 export interface UpdateFilterOptions {
   /**
@@ -31,6 +37,74 @@ export interface UpdateFieldOptions extends UpdateFilterOptions {
    */
   autoSelectFirstFilter?: boolean;
 }
+
+const getFieldArgParameterIndexes = (filter: StandardFnSchema): number[] => {
+  const meta = filter.meta as FieldArgFilterMeta | undefined;
+  const fieldArgParameters = meta?.fieldArgParameters;
+  if (!Array.isArray(fieldArgParameters)) {
+    return [];
+  }
+
+  return fieldArgParameters.filter(
+    (item): item is number =>
+      typeof item === "number" && Number.isInteger(item) && item >= 0,
+  );
+};
+
+const hasCompatibleFieldArg = ({
+  selectedField,
+  filterableFields,
+  argSchema,
+}: {
+  selectedField: FilterField;
+  filterableFields: FilterField[];
+  argSchema: $ZodType;
+}) =>
+  filterableFields.some(
+    (field) =>
+      !isEqualPath(field.path, selectedField.path) &&
+      isSameType(field.fieldSchema, argSchema),
+  );
+
+const isFilterSelectableForField = ({
+  filter,
+  selectedField,
+  filterableFields,
+}: {
+  filter: StandardFnSchema;
+  selectedField: FilterField;
+  filterableFields: FilterField[];
+}) => {
+  const fieldArgParameterIndexes = getFieldArgParameterIndexes(filter);
+  if (!fieldArgParameterIndexes.length) {
+    return true;
+  }
+
+  const requiredArguments = getParametersExceptFirst(filter);
+  return fieldArgParameterIndexes.every((index) => {
+    const argSchema = requiredArguments._zod.def.items.at(index);
+    if (!argSchema) {
+      return false;
+    }
+    return hasCompatibleFieldArg({
+      selectedField,
+      filterableFields,
+      argSchema,
+    });
+  });
+};
+
+const getSelectableFiltersForField = (
+  field: FilterField,
+  filterableFields: FilterField[],
+) =>
+  field.filterFnList.filter((filter) =>
+    isFilterSelectableForField({
+      filter,
+      selectedField: field,
+      filterableFields,
+    }),
+  );
 
 export const useFilterSelect = (rule: SingleFilter) => {
   const {
@@ -63,13 +137,20 @@ export const useFilterSelect = (rule: SingleFilter) => {
     value: field,
   }));
 
-  const selectedFilter = selectedField?.filterFnList.find(
+  const selectableFilters = selectedField
+    ? getSelectableFiltersForField(selectedField, filterableFields)
+    : undefined;
+
+  const selectedFilter = selectableFilters?.find(
     (filter) => filter.name === rule.name,
   );
-  const filterOptions = selectedField?.filterFnList.map((filter) => ({
-    label: getLocaleText(mapFilterName(filter, selectedField)),
-    value: filter,
-  }));
+  const filterOptions =
+    selectedField && selectableFilters
+      ? selectableFilters.map((filter) => ({
+          label: getLocaleText(mapFilterName(filter, selectedField)),
+          value: filter,
+        }))
+      : undefined;
 
   /**
    * Checks if the new filter schema has the same arguments as the current filter schema.
@@ -78,9 +159,7 @@ export const useFilterSelect = (rule: SingleFilter) => {
     if (!selectedField) {
       return false;
     }
-    const currentFilterSchema = selectedField.filterFnList.find(
-      (filter) => filter.name === rule.name,
-    );
+    const currentFilterSchema = selectedFilter;
     if (!currentFilterSchema) {
       // Select filter first time
       return false;
@@ -104,13 +183,17 @@ export const useFilterSelect = (rule: SingleFilter) => {
       throw new Error("Field has no filter");
     }
     // If new field has the same filter, it can be retained
-    const theSameFilterInNewField = newField.filterFnList.find(
+    const selectableFiltersInNewField = getSelectableFiltersForField(
+      newField,
+      filterableFields,
+    );
+    const theSameFilterInNewField = selectableFiltersInNewField.find(
       (filter) => filter.name === rule.name,
     );
     const canRetainFilter = !!theSameFilterInNewField;
     const needRetainFilter = tryRetainFilter && canRetainFilter;
     const fallbackFilter = autoSelectFirstFilter
-      ? newField.filterFnList[0]
+      ? selectableFiltersInNewField[0]
       : undefined;
 
     const newFilterSchema = needRetainFilter
