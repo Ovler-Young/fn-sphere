@@ -526,6 +526,9 @@ const patientCustomFilters: FnSchema[] = [
       output: z.boolean(),
     }),
     implement: (value, otherValue) => value < otherValue,
+    meta: {
+      fieldArgParameters: [0],
+    },
   }),
   defineTypedFn({
     name: patientFilterNames.absoluteDifferenceAtMost,
@@ -535,6 +538,9 @@ const patientCustomFilters: FnSchema[] = [
     }),
     implement: (value, otherValue, threshold) =>
       Math.abs(value - otherValue) <= threshold,
+    meta: {
+      fieldArgParameters: [0],
+    },
   }),
   defineTypedFn({
     name: patientFilterNames.daysBeforeBetween,
@@ -546,6 +552,9 @@ const patientCustomFilters: FnSchema[] = [
       const daysBefore =
         (baseDate.getTime() - value.getTime()) / (24 * 60 * 60 * 1000);
       return daysBefore >= minDays && daysBefore <= maxDays;
+    },
+    meta: {
+      fieldArgParameters: [0],
     },
   }),
 ];

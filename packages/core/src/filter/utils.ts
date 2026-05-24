@@ -256,7 +256,7 @@ export const resolveFilterArgExpression = <Data>(
   if (expression.type === "field") {
     return getValueAtPath(data, expression.path);
   }
-  unreachable(expression);
+  throw new Error("Unsupported filter argument expression");
 };
 
 export const resolveFilterArg = <Data>(data: Data, arg: unknown): unknown => {
