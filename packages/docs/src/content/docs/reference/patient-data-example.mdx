@@ -12,8 +12,25 @@ Useful filters to try:
 - `dischargeWeight` absolute difference is less than or equal to `admissionWeight` by 5
 - `id` contains `P-01`
 
-import { PatientFilterExample } from "~/components/examples/patient-filter-example.tsx";
+import {
+  PatientCustomFilterExample,
+  PatientFilterExample,
+} from "~/components/examples/patient-filter-example.tsx";
 
 <div className="not-content">
   <PatientFilterExample client:load />
+</div>
+
+## Custom Filters and Custom Data Inputs
+
+This version keeps the same patient table and adds patient-specific filters through `defineTypedFn`. The field-pair controls are custom `DataInputViewSpec` components instead of the preset field/expression inputs.
+
+Useful filters to try:
+
+- `admissionDate` is days before selected date, with base `dischargeDate`, min `1`, max `14`
+- `dischargeSystolic` is less than selected column, with field `admissionSystolic`
+- `dischargeWeight` absolute difference from column is at most, with field `admissionWeight`, threshold `5`
+
+<div className="not-content">
+  <PatientCustomFilterExample client:load />
 </div>

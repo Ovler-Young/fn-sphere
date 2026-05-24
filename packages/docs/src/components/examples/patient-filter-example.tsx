@@ -1,6 +1,13 @@
 import {
+  createFilterTheme,
+  createFilterGroup,
+  createSingleFilter,
+  defineTypedFn,
+  type DataInputViewSpec,
+  type FilterArgExpression,
   FilterBuilder,
   FilterSphereProvider,
+  type FnSchema,
   presetFilter,
   useFilterSphere,
 } from "@fn-sphere/filter";
@@ -241,6 +248,233 @@ const patientData: PatientRecord[] = [
   },
 ];
 
+const numberFieldOptions = [
+  { label: "admissionSystolic", value: "admissionSystolic" },
+  { label: "dischargeSystolic", value: "dischargeSystolic" },
+  { label: "admissionWeight", value: "admissionWeight" },
+  { label: "dischargeWeight", value: "dischargeWeight" },
+] satisfies { label: string; value: keyof PatientRecord }[];
+
+const dateFieldOptions = [
+  { label: "admissionDate", value: "admissionDate" },
+  { label: "dischargeDate", value: "dischargeDate" },
+] satisfies { label: string; value: keyof PatientRecord }[];
+
+const toFieldArg = (field: keyof PatientRecord): FilterArgExpression => ({
+  type: "field",
+  path: [field],
+});
+
+const getFieldArgValue = (
+  value: unknown,
+  fallback: keyof PatientRecord,
+): keyof PatientRecord => {
+  if (
+    value &&
+    typeof value === "object" &&
+    "type" in value &&
+    value.type === "field" &&
+    "path" in value &&
+    Array.isArray(value.path) &&
+    typeof value.path[0] === "string"
+  ) {
+    return value.path[0] as keyof PatientRecord;
+  }
+  return fallback;
+};
+
+const getNumberValue = (value: unknown, fallback: number) =>
+  typeof value === "number" ? value : fallback;
+
+const numberFieldInput: DataInputViewSpec = {
+  name: "patient number field input",
+  match: [z.number()],
+  view: ({ rule, updateInput }) => {
+    const selectedField = getFieldArgValue(rule.args[0], "admissionSystolic");
+    return (
+      <>
+        <span>field</span>
+        <select
+          value={selectedField}
+          onChange={(event) => {
+            updateInput(toFieldArg(event.target.value as keyof PatientRecord));
+          }}
+        >
+          {numberFieldOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </>
+    );
+  },
+};
+
+const numberFieldThresholdInput: DataInputViewSpec = {
+  name: "patient number field threshold input",
+  match: [z.number(), z.number()],
+  view: ({ rule, updateInput }) => {
+    const selectedField = getFieldArgValue(rule.args[0], "admissionWeight");
+    const threshold = getNumberValue(rule.args[1], 5);
+    return (
+      <>
+        <span>field</span>
+        <select
+          value={selectedField}
+          onChange={(event) => {
+            updateInput(
+              toFieldArg(event.target.value as keyof PatientRecord),
+              threshold,
+            );
+          }}
+        >
+          {numberFieldOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <span>threshold</span>
+        <input
+          type="number"
+          value={threshold}
+          onChange={(event) => {
+            updateInput(
+              toFieldArg(selectedField),
+              event.target.value.length ? +event.target.value : 0,
+            );
+          }}
+          style={{ width: "80px" }}
+        />
+      </>
+    );
+  },
+};
+
+const dateRangeComparisonInput: DataInputViewSpec = {
+  name: "patient date range comparison input",
+  match: [z.date(), z.number(), z.number()],
+  view: ({ rule, updateInput }) => {
+    const selectedField = getFieldArgValue(rule.args[0], "dischargeDate");
+    const minDays = getNumberValue(rule.args[1], 1);
+    const maxDays = getNumberValue(rule.args[2], 14);
+    return (
+      <>
+        <span>base</span>
+        <select
+          value={selectedField}
+          onChange={(event) => {
+            updateInput(
+              toFieldArg(event.target.value as keyof PatientRecord),
+              minDays,
+              maxDays,
+            );
+          }}
+        >
+          {dateFieldOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <span>min days</span>
+        <input
+          type="number"
+          value={minDays}
+          onChange={(event) => {
+            updateInput(
+              toFieldArg(selectedField),
+              event.target.value.length ? +event.target.value : 0,
+              maxDays,
+            );
+          }}
+          style={{ width: "80px" }}
+        />
+        <span>max days</span>
+        <input
+          type="number"
+          value={maxDays}
+          onChange={(event) => {
+            updateInput(
+              toFieldArg(selectedField),
+              minDays,
+              event.target.value.length ? +event.target.value : 0,
+            );
+          }}
+          style={{ width: "80px" }}
+        />
+      </>
+    );
+  },
+};
+
+const patientFilterTheme = createFilterTheme({
+  dataInputViews: [
+    numberFieldInput,
+    numberFieldThresholdInput,
+    dateRangeComparisonInput,
+  ],
+});
+
+const patientCustomFilters: FnSchema[] = [
+  defineTypedFn({
+    name: "is less than selected column",
+    define: z.function({
+      input: [z.number(), z.number()],
+      output: z.boolean(),
+    }),
+    implement: (value, otherValue) => value < otherValue,
+  }),
+  defineTypedFn({
+    name: "absolute difference from column is at most",
+    define: z.function({
+      input: [z.number(), z.number(), z.number()],
+      output: z.boolean(),
+    }),
+    implement: (value, otherValue, threshold) =>
+      Math.abs(value - otherValue) <= threshold,
+  }),
+  defineTypedFn({
+    name: "is days before selected date",
+    define: z.function({
+      input: [z.date(), z.date(), z.number(), z.number()],
+      output: z.boolean(),
+    }),
+    implement: (value, baseDate, minDays, maxDays) => {
+      const daysBefore =
+        (baseDate.getTime() - value.getTime()) / (24 * 60 * 60 * 1000);
+      return daysBefore >= minDays && daysBefore <= maxDays;
+    },
+  }),
+];
+
+const patientCustomFilterList = [
+  ...patientCustomFilters,
+  ...presetFilter.filter((filter) => filter.name === "contains"),
+];
+
+const customDefaultRule = createFilterGroup({
+  op: "and",
+  conditions: [
+    createSingleFilter({
+      path: ["admissionDate"],
+      name: "is days before selected date",
+      args: [toFieldArg("dischargeDate"), 1, 14],
+    }),
+    createSingleFilter({
+      path: ["dischargeSystolic"],
+      name: "is less than selected column",
+      args: [toFieldArg("admissionSystolic")],
+    }),
+    createSingleFilter({
+      path: ["dischargeWeight"],
+      name: "absolute difference from column is at most",
+      args: [toFieldArg("admissionWeight"), 5],
+    }),
+  ],
+});
+
 export function PatientFilterExample() {
   const [filteredData, setFilteredData] =
     useState<PatientRecord[]>(patientData);
@@ -254,6 +488,32 @@ export function PatientFilterExample() {
 
   return (
     <FilterSphereProvider context={context}>
+      <FilterBuilder />
+      <div className="mt-4">
+        <Table
+          data={filteredData}
+          schema={patientSchema}
+          className="max-h-[620px]"
+        />
+      </div>
+    </FilterSphereProvider>
+  );
+}
+
+export function PatientCustomFilterExample() {
+  const [filteredData, setFilteredData] =
+    useState<PatientRecord[]>(patientData);
+  const { context } = useFilterSphere({
+    schema: patientSchema,
+    defaultRule: customDefaultRule,
+    filterFnList: patientCustomFilterList,
+    onRuleChange: ({ predicate }) => {
+      setFilteredData(patientData.filter(predicate));
+    },
+  });
+
+  return (
+    <FilterSphereProvider context={context} theme={patientFilterTheme}>
       <FilterBuilder />
       <div className="mt-4">
         <Table
