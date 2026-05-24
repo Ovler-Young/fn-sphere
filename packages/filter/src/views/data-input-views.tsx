@@ -157,7 +157,16 @@ const getAvailableOperandKind = (
 const getAvailableInputMode = (
   mode: InputMode,
   fieldOptions: { value: FilterField; label: string }[],
-): InputMode => (mode === "field" && !fieldOptions.length ? "value" : mode);
+  showExpression: boolean,
+): InputMode => {
+  if (mode === "field" && !fieldOptions.length) {
+    return "value";
+  }
+  if (mode === "expression" && (!showExpression || !fieldOptions.length)) {
+    return "value";
+  }
+  return mode;
+};
 
 const getOperandLiteralNumber = (arg: FilterArgExpression) =>
   arg.type === "literal" && typeof arg.value === "number" ? arg.value : 0;
@@ -500,12 +509,17 @@ const SingleArgShell = ({
   onChangeField: (value: FilterFieldArgExpression) => void;
   showExpression?: boolean;
 }) => {
-  const availableMode = getAvailableInputMode(mode, fieldOptions);
+  const canShowExpression = showExpression && fieldOptions.length > 0;
+  const availableMode = getAvailableInputMode(
+    mode,
+    fieldOptions,
+    canShowExpression,
+  );
   return (
     <>
       <SingleArgInputMode
         mode={availableMode}
-        showExpression={showExpression}
+        showExpression={canShowExpression}
         showField={fieldOptions.length > 0}
         onChangeMode={onChangeMode}
       />
@@ -798,15 +812,21 @@ export const presetDataInputSpecs: DataInputViewSpec[] = [
         parameterSchema: parameterSchema as $ZodType,
         currentPath: rule.path,
       });
-      const mode = getExpressionMode(rule.args[0]);
       const expression = isNumberExpression(rule.args[0])
         ? rule.args[0]
         : createDefaultNumberExpression(fieldOptions);
-      const value = (getLiteralValue(rule.args[0]) as number) ?? "";
+      const literalValue = getLiteralValue(rule.args[0]);
+      const value = typeof literalValue === "number" ? literalValue : "";
+      const canShowExpression = fieldOptions.length > 0;
+      const mode = getAvailableInputMode(
+        getExpressionMode(rule.args[0]),
+        fieldOptions,
+        canShowExpression,
+      );
       return (
         <SingleArgShell
           mode={mode}
-          showExpression
+          showExpression={canShowExpression}
           fieldOptions={fieldOptions}
           fieldValue={getFieldArg(rule.args[0])}
           onChangeMode={(newMode) => {
@@ -866,10 +886,15 @@ export const presetDataInputSpecs: DataInputViewSpec[] = [
         parameterSchema: numberSchema,
         currentPath: rule.path,
       });
-      const mode = getExpressionMode(rule.args[0]);
       const expression = isDateOffsetExpression(rule.args[0])
         ? rule.args[0]
         : createDefaultDateOffsetExpression(dateFieldOptions);
+      const canShowExpression = dateFieldOptions.length > 0;
+      const mode = getAvailableInputMode(
+        getExpressionMode(rule.args[0]),
+        dateFieldOptions,
+        canShowExpression,
+      );
 
       const literalDate = getLiteralValue(rule.args[0]);
       const value =

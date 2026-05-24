@@ -5,6 +5,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import { createFilterGroup, createSingleFilter } from "@fn-sphere/core";
 import type { FilterGroup } from "@fn-sphere/core";
 import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
@@ -16,13 +17,16 @@ import {
 
 const TestFilter = ({
   schema,
+  defaultRule,
   onRuleChange,
 }: {
   schema: z.ZodTypeAny;
+  defaultRule?: FilterGroup;
   onRuleChange: (rule: FilterGroup) => void;
 }) => {
   const { context } = useFilterSphere({
     schema,
+    ...(defaultRule ? { defaultRule } : {}),
     onRuleChange: ({ filterRule }) => onRuleChange(filterRule),
   });
   return (
@@ -120,7 +124,7 @@ describe("preset data input expressions", () => {
     expect(fieldOptions).not.toContain("label");
   });
 
-  it("hides single-argument field mode when no compatible field exists", () => {
+  it("hides single-argument field and expression modes when no compatible field exists", () => {
     const { container } = render(
       <TestFilter
         schema={z.object({ score: z.number(), label: z.string() })}
@@ -129,7 +133,38 @@ describe("preset data input expressions", () => {
     );
 
     const modeSelect = within(container).getAllByRole("combobox")[2]!;
-    expect(getOptionLabels(modeSelect)).toEqual(["value", "expression"]);
+    expect(getOptionLabels(modeSelect)).toEqual(["value"]);
+  });
+
+  it("renders value mode when an expression rule no longer has a compatible field", () => {
+    const { container } = render(
+      <TestFilter
+        schema={z.object({ score: z.number(), label: z.string() })}
+        defaultRule={createFilterGroup({
+          op: "and",
+          conditions: [
+            createSingleFilter({
+              path: ["score"],
+              name: "greaterThan",
+              args: [
+                {
+                  type: "binary",
+                  op: "multiply",
+                  left: { type: "literal", value: 10 },
+                  right: { type: "literal", value: 2 },
+                },
+              ],
+            }),
+          ],
+        })}
+        onRuleChange={() => {}}
+      />,
+    );
+
+    const modeSelect = within(container).getAllByRole("combobox")[2]!;
+    expect(getOptionLabels(modeSelect)).toEqual(["value"]);
+    expect((modeSelect as HTMLSelectElement).value).toBe("0");
+    expect(within(container).getAllByRole("spinbutton")).toHaveLength(1);
   });
 
   it("hides number operand field mode when no compatible field exists", () => {
