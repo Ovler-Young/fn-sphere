@@ -9,11 +9,10 @@ import {
   FilterSphereProvider,
   type FnSchema,
   presetFilter,
-  presetTheme,
   useFilterSphere,
   useView,
 } from "@fn-sphere/filter";
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { z } from "zod";
 import type { $ZodTypes } from "zod/v4/core";
 import { Table } from "~/components/table";
@@ -295,6 +294,19 @@ const getNumberValue = (value: unknown, fallback: number) =>
 const getSchemaType = (schema: unknown) =>
   (schema as $ZodTypes | undefined)?._zod.def.type;
 
+const DataInputGroup = ({ children }: { children: ReactNode }) => (
+  <span
+    style={{
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 8,
+      flexWrap: "wrap",
+    }}
+  >
+    {children}
+  </span>
+);
+
 const FieldArgSelect = ({
   context,
   fieldSchema,
@@ -357,7 +369,7 @@ const numberFieldInput: DataInputViewSpec = {
   view: function View(props) {
     const { context, fieldSchema, rule, updateInput } = props;
     return (
-      <>
+      <DataInputGroup>
         <FieldArgSelect
           context={context}
           fieldSchema={fieldSchema}
@@ -368,7 +380,7 @@ const numberFieldInput: DataInputViewSpec = {
             updateInput(toFieldArg(field));
           }}
         />
-      </>
+      </DataInputGroup>
     );
   },
 };
@@ -383,7 +395,7 @@ const numberFieldThresholdInput: DataInputViewSpec = {
     const selectedField = getFieldArgValue(rule.args[0], "admissionWeight");
     const threshold = getNumberValue(rule.args[1], 5);
     return (
-      <>
+      <DataInputGroup>
         <FieldArgSelect
           context={context}
           fieldSchema={fieldSchema}
@@ -403,7 +415,7 @@ const numberFieldThresholdInput: DataInputViewSpec = {
           }}
           style={{ width: "80px" }}
         />
-      </>
+      </DataInputGroup>
     );
   },
 };
@@ -419,7 +431,7 @@ const dateRangeComparisonInput: DataInputViewSpec = {
     const minDays = getNumberValue(rule.args[1], 1);
     const maxDays = getNumberValue(rule.args[2], 14);
     return (
-      <>
+      <DataInputGroup>
         <FieldArgSelect
           context={context}
           fieldSchema={fieldSchema}
@@ -456,7 +468,7 @@ const dateRangeComparisonInput: DataInputViewSpec = {
           }}
           style={{ width: "80px" }}
         />
-      </>
+      </DataInputGroup>
     );
   },
 };
@@ -473,27 +485,6 @@ const patientFilterTheme = createFilterTheme({
         }}
       />
     ),
-  },
-  templates: {
-    SingleFilterContainer: ({ style, ...props }) => {
-      const PresetSingleFilterContainer =
-        presetTheme.templates.SingleFilterContainer;
-      return (
-        <PresetSingleFilterContainer
-          {...props}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            flexWrap: "wrap",
-            minWidth: 0,
-            maxWidth: "100%",
-            overflowX: "auto",
-            ...style,
-          }}
-        />
-      );
-    },
   },
   dataInputViews: [
     numberFieldInput,
