@@ -8,10 +8,11 @@ import {
   FilterBuilder,
   FilterSphereProvider,
   type FnSchema,
+  presetTheme,
   useFilterSphere,
   useView,
 } from "@fn-sphere/filter";
-import { useMemo } from "react";
+import { useMemo, type CSSProperties } from "react";
 import { z } from "zod";
 import type { $ZodTypes } from "zod/v4/core";
 import { Table } from "~/components/table";
@@ -41,6 +42,11 @@ const patientFilterNames = {
     "absolute difference from selected field is at most",
   daysBeforeBetween: "days before selected date between",
 } as const;
+
+const patientControlStyle = {
+  minWidth: 0,
+  maxWidth: "min(100%, 220px)",
+} satisfies CSSProperties;
 
 const date = (value: string) => new Date(value);
 
@@ -464,6 +470,47 @@ const dateRangeComparisonInput: DataInputViewSpec = {
 };
 
 const patientFilterTheme = createFilterTheme({
+  primitives: {
+    input: ({ style, ...props }) => (
+      <input
+        {...props}
+        style={{
+          minWidth: 0,
+          maxWidth: "100%",
+          ...style,
+        }}
+      />
+    ),
+    select: ({ style, ...props }) => (
+      <select
+        {...props}
+        style={{
+          ...patientControlStyle,
+          ...style,
+        }}
+      />
+    ),
+  },
+  templates: {
+    SingleFilterContainer: ({ style, ...props }) => {
+      const PresetSingleFilterContainer =
+        presetTheme.templates.SingleFilterContainer;
+      return (
+        <PresetSingleFilterContainer
+          {...props}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            flexWrap: "wrap",
+            minWidth: 0,
+            maxWidth: "100%",
+            ...style,
+          }}
+        />
+      );
+    },
+  },
   dataInputViews: [
     numberFieldInput,
     numberFieldThresholdInput,
