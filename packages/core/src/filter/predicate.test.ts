@@ -257,6 +257,35 @@ describe("createFilterPredicate", () => {
     ).toBe(false);
   });
 
+  test("resolves numeric field reference arguments", () => {
+    const numericSchema = z.object({
+      age: z.number(),
+      minAge: z.number(),
+    });
+    const greaterThan = defineTypedFn({
+      name: "greaterThan",
+      define: z.function({
+        input: [z.number(), z.number()],
+        output: z.boolean(),
+      }),
+      implement: (value, target) => value > target,
+    });
+    const rule = createSingleFilter({
+      path: ["age"],
+      name: "greaterThan",
+      args: [{ type: "field", path: ["minAge"] }],
+    });
+    const predicate = createFilterPredicate({
+      filterFnList: [greaterThan],
+      schema: numericSchema,
+      filterRule: rule,
+      fallbackValue: false,
+    });
+
+    expect(predicate({ age: 30, minAge: 18 })).toBe(true);
+    expect(predicate({ age: 16, minAge: 18 })).toBe(false);
+  });
+
   test("keeps legacy object literal arguments unchanged", () => {
     const objectSchema = z.object({
       name: z.string(),

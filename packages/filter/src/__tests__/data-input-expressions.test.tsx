@@ -91,6 +91,32 @@ describe("preset data input expressions", () => {
     });
   });
 
+  it("only lists compatible field reference options", () => {
+    const { container } = render(
+      <TestFilter
+        schema={z.object({
+          score: z.number(),
+          multiplier: z.number(),
+          label: z.string(),
+        })}
+        onRuleChange={() => {}}
+      />,
+    );
+
+    const selects = within(container).getAllByRole("combobox");
+    fireEvent.change(selects[2]!, { target: { value: "1" } });
+
+    const fieldSelect = within(container).getAllByRole("combobox")[3]!;
+    const fieldOptions = within(fieldSelect)
+      .getAllByRole("option")
+      .map((option) => option.textContent)
+      .filter(Boolean);
+
+    expect(fieldOptions).toEqual(["multiplier"]);
+    expect(fieldOptions).not.toContain("score");
+    expect(fieldOptions).not.toContain("label");
+  });
+
   it("writes a date offset expression argument", async () => {
     let latestRule: FilterGroup | undefined;
     const { container } = render(
