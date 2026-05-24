@@ -40,6 +40,12 @@ const getFirstFilter = (rule: FilterGroup) => {
   return first;
 };
 
+const getOptionLabels = (select: HTMLElement) =>
+  within(select)
+    .getAllByRole("option")
+    .map((option) => option.textContent)
+    .filter(Boolean);
+
 describe("preset data input expressions", () => {
   afterEach(() => {
     cleanup();
@@ -107,14 +113,53 @@ describe("preset data input expressions", () => {
     fireEvent.change(selects[2]!, { target: { value: "1" } });
 
     const fieldSelect = within(container).getAllByRole("combobox")[3]!;
-    const fieldOptions = within(fieldSelect)
-      .getAllByRole("option")
-      .map((option) => option.textContent)
-      .filter(Boolean);
+    const fieldOptions = getOptionLabels(fieldSelect);
 
     expect(fieldOptions).toEqual(["multiplier"]);
     expect(fieldOptions).not.toContain("score");
     expect(fieldOptions).not.toContain("label");
+  });
+
+  it("hides single-argument field mode when no compatible field exists", () => {
+    const { container } = render(
+      <TestFilter
+        schema={z.object({ score: z.number(), label: z.string() })}
+        onRuleChange={() => {}}
+      />,
+    );
+
+    const modeSelect = within(container).getAllByRole("combobox")[2]!;
+    expect(getOptionLabels(modeSelect)).toEqual(["value", "expression"]);
+  });
+
+  it("hides number operand field mode when no compatible field exists", () => {
+    const { container } = render(
+      <TestFilter
+        schema={z.object({ score: z.number(), label: z.string() })}
+        onRuleChange={() => {}}
+      />,
+    );
+
+    const selects = within(container).getAllByRole("combobox");
+    fireEvent.change(selects[1]!, { target: { value: "6" } });
+
+    const operandModeSelect = within(container).getAllByRole("combobox")[2]!;
+    expect(getOptionLabels(operandModeSelect)).toEqual(["value"]);
+  });
+
+  it("hides date operand field mode when no compatible field exists", () => {
+    const { container } = render(
+      <TestFilter
+        schema={z.object({ admissionDate: z.date(), label: z.string() })}
+        onRuleChange={() => {}}
+      />,
+    );
+
+    const selects = within(container).getAllByRole("combobox");
+    fireEvent.change(selects[1]!, { target: { value: "2" } });
+
+    const baseDateModeSelect = within(container).getAllByRole("combobox")[2]!;
+    expect(getOptionLabels(baseDateModeSelect)).toEqual(["value"]);
   });
 
   it("writes a date offset expression argument", async () => {

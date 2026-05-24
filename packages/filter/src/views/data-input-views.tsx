@@ -149,6 +149,16 @@ const isDateOffsetExpression = (
 const getOperandKind = (arg: FilterArgExpression): OperandKind =>
   arg.type === "field" ? "field" : "literal";
 
+const getAvailableOperandKind = (
+  kind: OperandKind,
+  fieldOptions: { value: FilterField; label: string }[],
+): OperandKind => (kind === "field" && !fieldOptions.length ? "literal" : kind);
+
+const getAvailableInputMode = (
+  mode: InputMode,
+  fieldOptions: { value: FilterField; label: string }[],
+): InputMode => (mode === "field" && !fieldOptions.length ? "value" : mode);
+
 const getOperandLiteralNumber = (arg: FilterArgExpression) =>
   arg.type === "literal" && typeof arg.value === "number" ? arg.value : 0;
 
@@ -235,14 +245,17 @@ const NumberOperandInput = ({
 }) => {
   const { Input: InputView, Select } = useView("components");
   const { getLocaleText } = useRootRule();
-  const kind = getOperandKind(value);
+  const kind = getAvailableOperandKind(getOperandKind(value), fieldOptions);
+  const options: { label: string; value: OperandKind }[] = [
+    { label: getLocaleText("argumentModeValue"), value: "literal" },
+  ];
+  if (fieldOptions.length) {
+    options.push({ label: getLocaleText("argumentModeField"), value: "field" });
+  }
   return (
     <>
       <Select
-        options={[
-          { label: getLocaleText("argumentModeValue"), value: "literal" },
-          { label: getLocaleText("argumentModeField"), value: "field" },
-        ]}
+        options={options}
         value={kind}
         onChange={(newKind) => {
           if (newKind === "field") {
@@ -332,7 +345,13 @@ const DateBaseInput = ({
 }) => {
   const { Input: InputView, Select } = useView("components");
   const { getLocaleText } = useRootRule();
-  const kind = getOperandKind(value);
+  const kind = getAvailableOperandKind(getOperandKind(value), fieldOptions);
+  const options: { label: string; value: OperandKind }[] = [
+    { label: getLocaleText("argumentModeValue"), value: "literal" },
+  ];
+  if (fieldOptions.length) {
+    options.push({ label: getLocaleText("argumentModeField"), value: "field" });
+  }
   const literalValue =
     value.type === "literal" && value.value instanceof Date
       ? value.value.toISOString().slice(0, 10)
@@ -340,10 +359,7 @@ const DateBaseInput = ({
   return (
     <>
       <Select
-        options={[
-          { label: getLocaleText("argumentModeValue"), value: "literal" },
-          { label: getLocaleText("argumentModeField"), value: "field" },
-        ]}
+        options={options}
         value={kind}
         onChange={(newKind) => {
           if (newKind === "field") {
@@ -439,18 +455,25 @@ const DateOffsetExpressionInput = ({
 const SingleArgInputMode = ({
   mode,
   showExpression,
+  showField,
   onChangeMode,
 }: {
   mode: InputMode;
   showExpression: boolean;
+  showField: boolean;
   onChangeMode: (mode: InputMode) => void;
 }) => {
   const { Select } = useView("components");
   const { getLocaleText } = useRootRule();
   const options: { label: string; value: InputMode }[] = [
     { label: getLocaleText("argumentModeValue"), value: "value" as const },
-    { label: getLocaleText("argumentModeField"), value: "field" as const },
   ];
+  if (showField) {
+    options.push({
+      label: getLocaleText("argumentModeField"),
+      value: "field",
+    });
+  }
   if (showExpression) {
     options.push({
       label: getLocaleText("argumentModeExpression"),
@@ -476,24 +499,28 @@ const SingleArgShell = ({
   onChangeMode: (mode: InputMode) => void;
   onChangeField: (value: FilterFieldArgExpression) => void;
   showExpression?: boolean;
-}) => (
-  <>
-    <SingleArgInputMode
-      mode={mode}
-      showExpression={showExpression}
-      onChangeMode={onChangeMode}
-    />
-    {mode === "field" ? (
-      <FieldArgumentSelect
-        value={fieldValue}
-        options={fieldOptions}
-        onChange={onChangeField}
+}) => {
+  const availableMode = getAvailableInputMode(mode, fieldOptions);
+  return (
+    <>
+      <SingleArgInputMode
+        mode={availableMode}
+        showExpression={showExpression}
+        showField={fieldOptions.length > 0}
+        onChangeMode={onChangeMode}
       />
-    ) : (
-      children
-    )}
-  </>
-);
+      {availableMode === "field" ? (
+        <FieldArgumentSelect
+          value={fieldValue}
+          options={fieldOptions}
+          onChange={onChangeField}
+        />
+      ) : (
+        children
+      )}
+    </>
+  );
+};
 
 const createFieldArgumentOptions = ({
   context,
