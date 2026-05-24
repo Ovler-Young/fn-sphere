@@ -246,6 +246,100 @@ describe("isValidRule", () => {
     });
     expect(newResult).toBe(true);
   });
+
+  it("should allow compatible field expression args", () => {
+    const dataSchema = z.object({
+      target: z.number(),
+      other: z.number(),
+    });
+    const rule = createSingleFilter({
+      name: "Less than",
+      path: ["target"],
+      args: [{ type: "field", path: ["other"] }],
+    });
+    const standardFn = defineTypedFn({
+      name: "Less than",
+      define: z.function({
+        input: [z.number(), z.number()],
+        output: z.boolean(),
+      }),
+      implement: (value, target) => value < target,
+    });
+
+    expect(
+      isValidRule({
+        filterFnList: [standardFn],
+        dataSchema,
+        rule,
+      }),
+    ).toBe(true);
+  });
+
+  it("should reject incompatible field expression args", () => {
+    const dataSchema = z.object({
+      target: z.number(),
+      other: z.string(),
+    });
+    const rule = createSingleFilter({
+      name: "Less than",
+      path: ["target"],
+      args: [{ type: "field", path: ["other"] }],
+    });
+    const standardFn = defineTypedFn({
+      name: "Less than",
+      define: z.function({
+        input: [z.number(), z.number()],
+        output: z.boolean(),
+      }),
+      implement: (value, target) => value < target,
+    });
+
+    expect(
+      isValidRule({
+        filterFnList: [standardFn],
+        dataSchema,
+        rule,
+      }),
+    ).toBe(false);
+    expect(
+      normalizeFilter({
+        filterFnList: [standardFn],
+        dataSchema,
+        rule,
+      }),
+    ).toBeUndefined();
+  });
+
+  it("should keep ordinary object args on the old validation path", () => {
+    const dataSchema = z.object({
+      name: z.string(),
+    });
+    const objectArgSchema = z.object({
+      type: z.literal("field"),
+      path: z.array(z.union([z.string(), z.number()])),
+    });
+    const rule = createSingleFilter({
+      name: "Matches object",
+      path: ["name"],
+      args: [{ type: "field", path: ["missing"] }],
+    });
+    const standardFn = defineTypedFn({
+      name: "Matches object",
+      define: z.function({
+        input: [z.string(), objectArgSchema],
+        output: z.boolean(),
+      }),
+      implement: () => true,
+    });
+
+    expect(
+      isValidRule({
+        filterFnList: [standardFn],
+        dataSchema,
+        rule,
+      }),
+    ).toBe(true);
+  });
 });
 
 describe("normalizeFilter", () => {

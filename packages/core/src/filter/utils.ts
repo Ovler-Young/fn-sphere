@@ -7,6 +7,7 @@ import {
 import type { FnSchema, GenericFnSchema, StandardFnSchema } from "../types.js";
 import { unreachable } from "../utils.js";
 import type {
+  FilterArgExpression,
   FilterField,
   FilterGroup,
   FilterGroupInput,
@@ -236,6 +237,33 @@ export const getValueAtPath = <R = unknown>(obj: any, path: FilterPath): R => {
     result = result[key];
   }
   return result;
+};
+
+export const isFilterArgExpression = (
+  arg: unknown,
+): arg is FilterArgExpression => {
+  if (!arg || typeof arg !== "object") {
+    return false;
+  }
+  const value = arg as Record<string, unknown>;
+  return value.type === "field" && Array.isArray(value.path);
+};
+
+export const resolveFilterArgExpression = <Data>(
+  data: Data,
+  expression: FilterArgExpression,
+): unknown => {
+  if (expression.type === "field") {
+    return getValueAtPath(data, expression.path);
+  }
+  unreachable(expression);
+};
+
+export const resolveFilterArg = <Data>(data: Data, arg: unknown): unknown => {
+  if (!isFilterArgExpression(arg)) {
+    return arg;
+  }
+  return resolveFilterArgExpression(data, arg);
 };
 
 /**

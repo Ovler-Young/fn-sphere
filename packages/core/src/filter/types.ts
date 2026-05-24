@@ -3,6 +3,13 @@ import type { StandardFnSchema } from "../types.js";
 
 export type FilterPath = (string | number)[];
 
+export type FilterFieldArgExpression = {
+  type: "field";
+  path: FilterPath;
+};
+
+export type FilterArgExpression = FilterFieldArgExpression;
+
 export type FilterId = string & {
   // Type differentiator only.
   __filterId: true;

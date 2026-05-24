@@ -230,6 +230,70 @@ describe("createFilterPredicate", () => {
     expect(predicate({ name: "Bob", age: 25 })).toBe(false);
   });
 
+  test("resolves field args against each data row", () => {
+    const rowSchema = z.object({
+      before: z.number(),
+      after: z.number(),
+    });
+    const lessThan = defineTypedFn({
+      name: "less than",
+      define: z.function({
+        input: [z.number(), z.number()],
+        output: z.boolean(),
+      }),
+      implement: (value, target) => value < target,
+    });
+    const rule = createSingleFilter({
+      path: ["after"],
+      name: "less than",
+      args: [{ type: "field", path: ["before"] }],
+    });
+
+    const predicate = createFilterPredicate({
+      filterFnList: [lessThan],
+      schema: rowSchema,
+      filterRule: rule,
+      fallbackValue: false,
+      errorHandling: { catchError: false, logError: false },
+    });
+
+    expect(predicate({ before: 130, after: 120 })).toBe(true);
+    expect(predicate({ before: 110, after: 125 })).toBe(false);
+  });
+
+  test("does not resolve ordinary object args that match the parameter schema", () => {
+    const objectSchema = z.object({
+      name: z.string(),
+    });
+    const objectArgSchema = z.object({
+      type: z.literal("field"),
+      path: z.array(z.union([z.string(), z.number()])),
+    });
+    const matchesObject = defineTypedFn({
+      name: "matches object",
+      define: z.function({
+        input: [z.string(), objectArgSchema],
+        output: z.boolean(),
+      }),
+      implement: (_value, arg) => arg.path[0] === "name",
+    });
+    const rule = createSingleFilter({
+      path: ["name"],
+      name: "matches object",
+      args: [{ type: "field", path: ["name"] }],
+    });
+
+    const predicate = createFilterPredicate({
+      filterFnList: [matchesObject],
+      schema: objectSchema,
+      filterRule: rule,
+      fallbackValue: false,
+      errorHandling: { catchError: false, logError: false },
+    });
+
+    expect(predicate({ name: "Alice" })).toBe(true);
+  });
+
   test("returns fallbackValue when filterRule is undefined", () => {
     const predicateTrue = createFilterPredicate({
       filterFnList,

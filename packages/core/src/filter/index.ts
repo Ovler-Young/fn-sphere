@@ -13,6 +13,9 @@ export {
   genFilterId,
   getParametersExceptFirst,
   isEqualPath,
+  isFilterArgExpression,
+  resolveFilterArg,
+  resolveFilterArgExpression,
 } from "./utils.js";
 export { isValidRule, normalizeFilter } from "./validation.js";
 export type FilterSphere = ReturnType<typeof createFilterSphere>;

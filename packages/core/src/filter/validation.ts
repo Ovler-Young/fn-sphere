@@ -17,6 +17,7 @@ import {
   getParametersExceptFirst,
   getSchemaAtPath,
   instantiateGenericFn,
+  isFilterArgExpression,
 } from "./utils.js";
 
 type ValidateSuccess = {
@@ -137,9 +138,97 @@ const validateStandardFnRule = ({
   }
 
   if (!fnSchema.skipValidate) {
-    const parseResult = z.safeParse(requiredParameters, rule.args);
+    return validateRuleArgs({
+      fnSchema,
+      dataSchema,
+      requiredParameters,
+      rule,
+    });
+  }
+  return validateRuleArgs({
+    fnSchema,
+    dataSchema,
+    requiredParameters,
+    rule,
+  });
+};
+
+const validateRuleArgs = ({
+  fnSchema,
+  dataSchema,
+  requiredParameters,
+  rule,
+}: {
+  fnSchema: StandardFnSchema;
+  dataSchema: $ZodType;
+  requiredParameters: ReturnType<typeof getParametersExceptFirst>;
+  rule: StrictSingleFilter;
+}): ValidateSuccess | ValidateError => {
+  const parameterSchemas = requiredParameters._zod.def.items;
+  const restSchema = requiredParameters._zod.def.rest;
+  const parseResult = fnSchema.skipValidate
+    ? undefined
+    : z.safeParse(requiredParameters, rule.args);
+  if (parseResult?.success) {
     return parseResult;
   }
+
+  const hasFieldExpression = rule.args.some((arg, index) => {
+    if (!isFilterArgExpression(arg)) {
+      return false;
+    }
+    const parameterSchema = parameterSchemas[index] ?? restSchema;
+    if (!parameterSchema) {
+      return false;
+    }
+    return !z.safeParse(parameterSchema, arg).success;
+  });
+  if (!hasFieldExpression) {
+    return (
+      parseResult ?? {
+        success: true,
+      }
+    );
+  }
+
+  for (const [index, arg] of rule.args.entries()) {
+    const parameterSchema = parameterSchemas[index] ?? restSchema;
+    if (!parameterSchema) {
+      return {
+        success: false,
+        error: new Error(`rule.args[${index}] has no parameter schema`),
+      };
+    }
+
+    const directParseResult = z.safeParse(parameterSchema, arg);
+    if (directParseResult.success) {
+      continue;
+    }
+
+    if (!isFilterArgExpression(arg)) {
+      if (fnSchema.skipValidate) {
+        continue;
+      }
+      return directParseResult;
+    }
+
+    const fieldSchema = getSchemaAtPath(dataSchema, arg.path);
+    if (!fieldSchema) {
+      return {
+        success: false,
+        error: new Error(`dataSchema not have path: ${arg.path.join(".")}`),
+      };
+    }
+    if (!isSameType(parameterSchema, fieldSchema)) {
+      return {
+        success: false,
+        error: new Error(
+          `field expression schema not match rule.args[${index}] parameter schema: ${arg.path.join(".")}`,
+        ),
+      };
+    }
+  }
+
   return {
     success: true,
   };
