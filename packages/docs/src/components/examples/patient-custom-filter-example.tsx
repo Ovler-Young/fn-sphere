@@ -3,12 +3,9 @@ import {
   type DataInputViewSpec,
   FilterBuilder,
   FilterSphereProvider,
-  type SingleFilter,
-  useFilterRule,
   useFilterSphere,
-  useView,
 } from "@fn-sphere/filter";
-import { useMemo, type CSSProperties } from "react";
+import { useMemo, type ReactNode } from "react";
 import { Table } from "~/components/table";
 import {
   dateFieldOptions,
@@ -24,12 +21,6 @@ import {
   patientData,
   patientSchema,
 } from "./patient-custom-filter-data";
-
-type PatientSingleFilterProps = {
-  rule: SingleFilter;
-  className?: string;
-  style?: CSSProperties;
-};
 
 const getNumberComparisonInput = (value: unknown): NumberComparisonInput => {
   const parsed = numberComparisonInputSchema.safeParse(value);
@@ -54,13 +45,6 @@ const getDateRangeInput = (value: unknown): DateRangeInput => {
     minDays: 1,
     maxDays: 14,
   };
-};
-
-const getLeftField = (ruleArgs: unknown[], filterName?: string) => {
-  if (filterName === "date field is days before another date field") {
-    return getDateRangeInput(ruleArgs[0]).leftField;
-  }
-  return getNumberComparisonInput(ruleArgs[0]).leftField;
 };
 
 const NumberFieldSelect = ({
@@ -101,89 +85,18 @@ const DateFieldSelect = ({
   </select>
 );
 
-const patientFilterOptions = patientCustomFilters.map((filter) => ({
-  label: filter.name,
-  value: filter,
-}));
-
-const LeftFieldSelect = ({ rule }: PatientSingleFilterProps) => {
-  const { setRule } = useFilterRule(rule);
-  if (rule.name === "date field is days before another date field") {
-    const value = getDateRangeInput(rule.args[0]);
-    return (
-      <DateFieldSelect
-        value={value.leftField}
-        onChange={(leftField) =>
-          setRule({
-            ...rule,
-            path: [],
-            args: [{ ...value, leftField }],
-          })
-        }
-      />
-    );
-  }
-  const value = getNumberComparisonInput(rule.args[0]);
-  return (
-    <NumberFieldSelect
-      value={value.leftField}
-      onChange={(leftField) =>
-        setRule({
-          ...rule,
-          path: [],
-          args: [{ ...value, leftField }],
-        })
-      }
-    />
-  );
-};
-
-const PatientFilterSelect = ({ rule }: PatientSingleFilterProps) => {
-  const { setRule } = useFilterRule(rule);
-  const { Select: SelectView } = useView("components");
-  const selectedFilter = patientCustomFilters.find(
-    (filter) => filter.name === rule.name,
-  );
-  const leftField = getLeftField(rule.args, rule.name);
-
-  return (
-    <SelectView
-      value={selectedFilter}
-      options={patientFilterOptions}
-      onChange={(filter) => {
-        const nextArgs =
-          filter.name === "date field is days before another date field"
-            ? [
-                {
-                  leftField: dateFieldOptions.includes(leftField as DateField)
-                    ? (leftField as DateField)
-                    : "admissionDate",
-                  rightField: "dischargeDate",
-                  minDays: 1,
-                  maxDays: 14,
-                } satisfies DateRangeInput,
-              ]
-            : [
-                {
-                  leftField: numberFieldOptions.includes(
-                    leftField as NumberField,
-                  )
-                    ? (leftField as NumberField)
-                    : "dischargeSystolic",
-                  rightField: "admissionSystolic",
-                  threshold: 5,
-                } satisfies NumberComparisonInput,
-              ];
-        setRule({
-          ...rule,
-          path: [],
-          name: filter.name,
-          args: nextArgs,
-        });
-      }}
-    />
-  );
-};
+const DataInputGroup = ({ children }: { children: ReactNode }) => (
+  <span
+    style={{
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 8,
+      flexWrap: "wrap",
+    }}
+  >
+    {children}
+  </span>
+);
 
 const numberComparisonInput: DataInputViewSpec = {
   name: "patient number comparison input",
@@ -191,7 +104,12 @@ const numberComparisonInput: DataInputViewSpec = {
   view: ({ rule, updateInput }) => {
     const value = getNumberComparisonInput(rule.args[0]);
     return (
-      <>
+      <DataInputGroup>
+        <span>left</span>
+        <NumberFieldSelect
+          value={value.leftField}
+          onChange={(leftField) => updateInput({ ...value, leftField })}
+        />
         <span>right</span>
         <NumberFieldSelect
           value={value.rightField}
@@ -209,7 +127,7 @@ const numberComparisonInput: DataInputViewSpec = {
           }}
           style={{ width: "80px" }}
         />
-      </>
+      </DataInputGroup>
     );
   },
 };
@@ -220,7 +138,12 @@ const dateRangeInput: DataInputViewSpec = {
   view: ({ rule, updateInput }) => {
     const value = getDateRangeInput(rule.args[0]);
     return (
-      <>
+      <DataInputGroup>
+        <span>left date</span>
+        <DateFieldSelect
+          value={value.leftField}
+          onChange={(leftField) => updateInput({ ...value, leftField })}
+        />
         <span>right date</span>
         <DateFieldSelect
           value={value.rightField}
@@ -250,35 +173,13 @@ const dateRangeInput: DataInputViewSpec = {
           }}
           style={{ width: "80px" }}
         />
-      </>
+      </DataInputGroup>
     );
   },
 };
 
-const PatientSingleFilter = ({ rule, ...props }: PatientSingleFilterProps) => {
-  const {
-    ruleState: { isInvert },
-    removeRule,
-  } = useFilterRule(rule);
-  const { Button: ButtonView } = useView("components");
-  const { FilterDataInput, SingleFilterContainer } = useView("templates");
-
-  return (
-    <SingleFilterContainer rule={rule} {...props}>
-      <LeftFieldSelect rule={rule} />
-      {isInvert ? "not" : null}
-      <PatientFilterSelect rule={rule} />
-      <FilterDataInput rule={rule} />
-      <ButtonView onClick={() => removeRule(true)}>delete</ButtonView>
-    </SingleFilterContainer>
-  );
-};
-
 const patientFilterTheme = createFilterTheme({
   dataInputViews: [numberComparisonInput, dateRangeInput],
-  templates: {
-    SingleFilter: PatientSingleFilter,
-  },
 });
 
 export function PatientCustomFilterExample() {
@@ -286,6 +187,7 @@ export function PatientCustomFilterExample() {
     schema: patientSchema,
     defaultRule,
     filterFnList: patientCustomFilters,
+    mapFieldName: (field) => (field.path.length === 0 ? "patient" : ""),
   });
   const filteredPatients = useMemo(
     () => patientData.filter(predicate),
