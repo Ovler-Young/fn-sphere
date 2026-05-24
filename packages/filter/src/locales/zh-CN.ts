@@ -20,6 +20,11 @@ export const zhCN = {
   argumentUnitYear: "年",
   argumentUnitMonth: "月",
   argumentUnitDay: "天",
+  argumentOtherNumber: "另一列",
+  argumentThreshold: "阈值",
+  argumentBaseDate: "基准",
+  argumentMinDays: "最小天数",
+  argumentMaxDays: "最大天数",
 
   // Filter
   // General Filter
@@ -50,8 +55,12 @@ export const zhCN = {
   greaterThanOrEqual: ">=",
   lessThan: "<",
   lessThanOrEqual: "<=",
+  absoluteDifferenceLessThan: "差值 <",
+  absoluteDifferenceLessThanOrEqual: "差值 <=",
 
   // Date Filter
   before: "在之前",
   after: "在之后",
+  betweenDaysBefore: "提前天数",
+  betweenDaysBeforeExclusive: "提前天数不含边界",
 };

@@ -148,4 +148,78 @@ describe("preset data input expressions", () => {
       });
     });
   });
+
+  it("writes number difference field and threshold arguments", async () => {
+    let latestRule: FilterGroup | undefined;
+    const { container } = render(
+      <TestFilter
+        schema={z.object({ score: z.number(), baseline: z.number() })}
+        onRuleChange={(rule) => {
+          latestRule = rule;
+        }}
+      />,
+    );
+
+    const selects = within(container).getAllByRole("combobox");
+    fireEvent.change(selects[1]!, { target: { value: "6" } });
+
+    await waitFor(() => {
+      expect(getFirstFilter(latestRule!).name).toBe(
+        "absoluteDifferenceLessThan",
+      );
+      expect(getFirstFilter(latestRule!).args).toEqual([
+        { type: "field", path: ["baseline"] },
+        10,
+      ]);
+    });
+
+    const inputs = within(container).getAllByRole("spinbutton");
+    fireEvent.change(inputs[0]!, { target: { value: "7" } });
+
+    await waitFor(() => {
+      expect(getFirstFilter(latestRule!).args).toEqual([
+        { type: "field", path: ["baseline"] },
+        7,
+      ]);
+    });
+  });
+
+  it("writes date range base field and day arguments", async () => {
+    let latestRule: FilterGroup | undefined;
+    const { container } = render(
+      <TestFilter
+        schema={z.object({
+          admissionDate: z.date(),
+          dischargeDate: z.date(),
+        })}
+        onRuleChange={(rule) => {
+          latestRule = rule;
+        }}
+      />,
+    );
+
+    const selects = within(container).getAllByRole("combobox");
+    fireEvent.change(selects[1]!, { target: { value: "2" } });
+
+    await waitFor(() => {
+      expect(getFirstFilter(latestRule!).name).toBe("betweenDaysBefore");
+      expect(getFirstFilter(latestRule!).args).toEqual([
+        { type: "field", path: ["dischargeDate"] },
+        0,
+        14,
+      ]);
+    });
+
+    const inputs = within(container).getAllByRole("spinbutton");
+    fireEvent.change(inputs[0]!, { target: { value: "7" } });
+    fireEvent.change(inputs[1]!, { target: { value: "14" } });
+
+    await waitFor(() => {
+      expect(getFirstFilter(latestRule!).args).toEqual([
+        { type: "field", path: ["dischargeDate"] },
+        7,
+        14,
+      ]);
+    });
+  });
 });

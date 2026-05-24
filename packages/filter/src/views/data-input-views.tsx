@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
 import { z } from "zod";
 import {
   isEqualPath,
@@ -36,6 +36,7 @@ const getOnlyParameter = (schema: $ZodTuple) => schema._zod.def.items[0];
 const getTypeName = (schema: $ZodType) => (schema as $ZodTypes)._zod.def.type;
 
 const numberSchema = z.number();
+const dateSchema = z.date();
 const isSameParameterType = (a: $ZodType, b: $ZodType) =>
   getTypeName(a) === "any" || getTypeName(b) === "any" || isSameType(a, b);
 
@@ -68,6 +69,41 @@ const toLiteralArg = (value: unknown): FilterArgExpression => ({
   type: "literal",
   value,
 });
+
+const toNumberOperandArg = (
+  arg: unknown,
+  fallback: FilterArgExpression,
+): FilterArgExpression => {
+  if (
+    isFilterArgExpression(arg) &&
+    (arg.type === "field" || arg.type === "literal")
+  ) {
+    return arg;
+  }
+  if (typeof arg === "number") {
+    return toLiteralArg(arg);
+  }
+  return fallback;
+};
+
+const toDateBaseArg = (
+  arg: unknown,
+  fallback: FilterArgExpression,
+): FilterArgExpression => {
+  if (
+    isFilterArgExpression(arg) &&
+    (arg.type === "field" || arg.type === "literal")
+  ) {
+    return arg;
+  }
+  if (arg instanceof Date) {
+    return toLiteralArg(arg);
+  }
+  return fallback;
+};
+
+const getNumberValue = (arg: unknown, fallback: number) =>
+  typeof arg === "number" ? arg : fallback;
 
 const getFieldOptions = ({
   fields,
@@ -476,6 +512,42 @@ const createFieldArgumentOptions = ({
     mapFieldName: context.mapFieldName,
   });
 
+const hasParameterSchemas = (
+  parameterSchemas: $ZodTuple,
+  expectedSchemas: $ZodType[],
+) => {
+  const items = parameterSchemas._zod.def.items;
+  return (
+    items.length === expectedSchemas.length &&
+    items.every((item, index) => {
+      const expectedSchema = expectedSchemas[index];
+      return (
+        !!expectedSchema &&
+        isSameParameterType(item as $ZodType, expectedSchema)
+      );
+    })
+  );
+};
+
+const NumberRangeInput = ({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (value: number) => void;
+}) => {
+  const { Input: InputView } = useView("components");
+  return (
+    <InputView
+      type="number"
+      value={String(value)}
+      onChange={(newValue) => {
+        onChange(newValue.length ? +newValue : 0);
+      }}
+    />
+  );
+};
+
 export const presetDataInputSpecs: DataInputViewSpec[] = [
   {
     // Use when user selects a field with no input
@@ -572,6 +644,116 @@ export const presetDataInputSpecs: DataInputViewSpec[] = [
             }}
           />
         </SingleArgShell>
+      );
+    },
+  },
+  {
+    name: "number tuple",
+    match: (parameterSchemas, fieldSchema) => {
+      if (!fieldSchema || !isSameParameterType(fieldSchema, numberSchema)) {
+        return false;
+      }
+      return hasParameterSchemas(parameterSchemas, [
+        numberSchema,
+        numberSchema,
+      ]);
+    },
+    view: function View({ context, requiredDataSchema, rule, updateInput }) {
+      const { getLocaleText } = useRootRule();
+      const otherNumberSchema = requiredDataSchema._zod.def.items[0];
+      const fieldOptions = createFieldArgumentOptions({
+        context,
+        parameterSchema: otherNumberSchema as $ZodType,
+        currentPath: rule.path,
+      });
+      const fallbackOther =
+        createDefaultFieldArg(fieldOptions) ?? toLiteralArg(0);
+      const otherNumber = toNumberOperandArg(rule.args[0], fallbackOther);
+      const threshold = getNumberValue(rule.args[1], 10);
+
+      useEffect(() => {
+        if (rule.args.length !== 2) {
+          updateInput(otherNumber, threshold);
+        }
+      }, [otherNumber, rule.args.length, threshold, updateInput]);
+
+      return (
+        <>
+          <span>{getLocaleText("argumentOtherNumber")}</span>
+          <NumberOperandInput
+            value={otherNumber}
+            fieldOptions={fieldOptions}
+            onChange={(newOtherNumber) =>
+              updateInput(newOtherNumber, threshold)
+            }
+          />
+          <span>{getLocaleText("argumentThreshold")}</span>
+          <NumberRangeInput
+            value={threshold}
+            onChange={(newThreshold) => updateInput(otherNumber, newThreshold)}
+          />
+        </>
+      );
+    },
+  },
+  {
+    name: "date range tuple",
+    match: (parameterSchemas, fieldSchema) => {
+      if (!fieldSchema || !isSameParameterType(fieldSchema, dateSchema)) {
+        return false;
+      }
+      return hasParameterSchemas(parameterSchemas, [
+        dateSchema,
+        numberSchema,
+        numberSchema,
+      ]);
+    },
+    view: function View({ context, requiredDataSchema, rule, updateInput }) {
+      const { getLocaleText } = useRootRule();
+      const baseDateSchema = requiredDataSchema._zod.def.items[0];
+      const dateFieldOptions = createFieldArgumentOptions({
+        context,
+        parameterSchema: baseDateSchema as $ZodType,
+        currentPath: rule.path,
+      });
+      const baseDate = toDateBaseArg(
+        rule.args[0],
+        createDefaultFieldArg(dateFieldOptions) ?? toLiteralArg(new Date()),
+      );
+      const minDays = getNumberValue(rule.args[1], 0);
+      const maxDays = getNumberValue(rule.args[2], 14);
+
+      useEffect(() => {
+        if (rule.args.length !== 3) {
+          updateInput(baseDate, minDays, maxDays);
+        }
+      }, [baseDate, maxDays, minDays, rule.args.length, updateInput]);
+
+      return (
+        <>
+          <span>{getLocaleText("argumentBaseDate")}</span>
+          <DateBaseInput
+            value={baseDate}
+            fieldOptions={dateFieldOptions}
+            onChange={(newBaseDate) =>
+              updateInput(newBaseDate, minDays, maxDays)
+            }
+          />
+          <span>{getLocaleText("argumentMinDays")}</span>
+          <NumberRangeInput
+            value={minDays}
+            onChange={(newMinDays) =>
+              updateInput(baseDate, newMinDays, maxDays)
+            }
+          />
+          <span>{getLocaleText("argumentMaxDays")}</span>
+          <NumberRangeInput
+            value={maxDays}
+            onChange={(newMaxDays) =>
+              updateInput(baseDate, minDays, newMaxDays)
+            }
+          />
+        </>
       );
     },
   },

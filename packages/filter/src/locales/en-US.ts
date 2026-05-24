@@ -20,6 +20,11 @@ export const enUS = {
   argumentUnitYear: "years",
   argumentUnitMonth: "months",
   argumentUnitDay: "days",
+  argumentOtherNumber: "other",
+  argumentThreshold: "threshold",
+  argumentBaseDate: "base",
+  argumentMinDays: "min",
+  argumentMaxDays: "max",
 
   // Filter
   // General Filter
@@ -49,8 +54,12 @@ export const enUS = {
   greaterThanOrEqual: ">=",
   lessThan: "<",
   lessThanOrEqual: "<=",
+  absoluteDifferenceLessThan: "|diff| <",
+  absoluteDifferenceLessThanOrEqual: "|diff| <=",
 
   // Date Filter
   before: "before",
   after: "after",
+  betweenDaysBefore: "days before",
+  betweenDaysBeforeExclusive: "days before exclusive",
 };

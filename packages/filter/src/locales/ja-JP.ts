@@ -20,6 +20,11 @@ export const jaJP = {
   argumentUnitYear: "年",
   argumentUnitMonth: "月",
   argumentUnitDay: "日",
+  argumentOtherNumber: "対象",
+  argumentThreshold: "しきい値",
+  argumentBaseDate: "基準",
+  argumentMinDays: "最小日数",
+  argumentMaxDays: "最大日数",
 
   // Filter
   // General Filter
@@ -50,8 +55,12 @@ export const jaJP = {
   greaterThanOrEqual: ">=",
   lessThan: "<",
   lessThanOrEqual: "<=",
+  absoluteDifferenceLessThan: "差分 <",
+  absoluteDifferenceLessThanOrEqual: "差分 <=",
 
   // Date Filter
   before: "より前",
   after: "より後ろ",
+  betweenDaysBefore: "日前",
+  betweenDaysBeforeExclusive: "日前(境界なし)",
 };
