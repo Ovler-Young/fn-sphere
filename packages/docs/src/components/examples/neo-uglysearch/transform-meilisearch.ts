@@ -5,7 +5,6 @@ import { filterFnList } from "./schema";
 // Define operator mapping
 const FILTER_OPERATORS: Record<string, string> = {
   equals: "=",
-  notEqual: "!=",
   notEquals: "!=",
   greaterThan: ">",
   greaterThanOrEqual: ">=",
@@ -20,28 +19,6 @@ const FILTER_OPERATORS: Record<string, string> = {
   after: ">",
 };
 
-const unsupportedComputedFilterNames = new Set([
-  "less than field",
-  "absolute difference from field is at most",
-  "days before date between",
-]);
-
-type FieldArgLike = {
-  type: "field";
-  path: (string | number)[];
-};
-
-const isFieldArgLike = (value: unknown): value is FieldArgLike => {
-  return (
-    !!value &&
-    typeof value === "object" &&
-    "type" in value &&
-    (value as { type: unknown }).type === "field" &&
-    "path" in value &&
-    Array.isArray((value as { path: unknown }).path)
-  );
-};
-
 /**
  * Checks if a filter is unary (takes 0 or 1 parameters)
  *
@@ -49,9 +26,6 @@ const isFieldArgLike = (value: unknown): value is FieldArgLike => {
  */
 const checkUnaryFilter = (filterName: string) => {
   // use `validateRule` from @fn-sphere/core in the future
-  if (unsupportedComputedFilterNames.has(filterName)) {
-    return false;
-  }
   const filterSchema = filterFnList.find((fn) => fn.name === filterName);
   if (!filterSchema) throw new Error("Unknown filter! " + filterName);
   const filterDefine =
@@ -62,51 +36,12 @@ const checkUnaryFilter = (filterName: string) => {
   return parameters._zod.def.items.length <= 1;
 };
 
-const renderPath = (path: (string | number)[]): string => {
-  return path.map(String).join(".");
-};
-
-const escapeMeiliString = (value: string): string => {
-  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-};
-
-const renderMeiliValue = (value: unknown): string | null => {
-  if (isFieldArgLike(value)) {
-    return null;
-  }
-  if (typeof value === "string") {
-    return `"${escapeMeiliString(value)}"`;
-  }
-  if (typeof value === "number" || typeof value === "boolean") {
-    return String(value);
-  }
-  if (value instanceof Date) {
-    return `sec(${value.getFullYear()}-${value.getMonth() + 1}-${value.getDate()})`;
-  }
-  if (Array.isArray(value)) {
-    const items = value.map(renderMeiliValue);
-    if (items.some((item) => item === null)) {
-      return null;
-    }
-    return `[${items.join(", ")}]`;
-  }
-  return null;
-};
-
 function transformSingleFilter(filter: SingleFilter): string | null {
-  const path = filter.path ? renderPath(filter.path) : undefined;
+  const path = filter.path?.[0];
   const operator = filter.name ? FILTER_OPERATORS[filter.name] : undefined;
   const value = filter.args[0];
 
-  if (!filter.name || path === undefined) {
-    return null;
-  }
-
-  if (unsupportedComputedFilterNames.has(filter.name)) {
-    return null;
-  }
-
-  if (operator === undefined) {
+  if (!filter.name || path === undefined || operator === undefined) {
     return null;
   }
   const isUnaryFilter = checkUnaryFilter(filter.name);
@@ -116,22 +51,28 @@ function transformSingleFilter(filter: SingleFilter): string | null {
 
   // Handle array values for IN/NOT IN operators
   if (Array.isArray(value)) {
-    const renderedValue = renderMeiliValue(value);
-    return renderedValue === null
-      ? null
-      : `${path} ${operator} ${renderedValue}`;
+    return `${path} ${operator} [${value
+      .map((v) => (typeof v === "string" ? `${v}` : v))
+      .join(", ")}]`;
   }
 
   if (value === undefined) {
     return `${path} ${operator}`;
   }
 
-  const renderedValue = renderMeiliValue(value);
-  if (renderedValue === null) {
-    return null;
+  // Handle string values
+  if (typeof value === "string") {
+    return `${path} ${operator} "${value}"`;
+  }
+  // Handle date values
+  if (value instanceof Date) {
+    const dateStr = `sec(${value.getFullYear()}-${
+      value.getMonth() + 1
+    }-${value.getDate()})`;
+    return `${path} ${operator} ${dateStr}`;
   }
 
-  return `${path} ${operator} ${renderedValue}`;
+  return `${path} ${operator} ${value}`;
 }
 
 function transformFilterGroup(filterGroup: FilterGroup): string | null {
