@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import type { $ZodNumber, $ZodString } from "zod/v4/core";
 import { defineGenericFn, defineTypedFn } from "../fn-helpers.js";
+import { dateFilter, numberFilter } from "../fn/filter.js";
 import type { FnSchema } from "../types.js";
 import type { FilterId, SingleFilter } from "./types.js";
 import { createFilterGroup, createSingleFilter } from "./utils.js";
@@ -358,6 +359,102 @@ describe("isValidRule", () => {
     ).toBe(false);
   });
 
+  it("should validate abs expressions for number arguments", () => {
+    const schema = z.object({
+      score: z.number(),
+      baseline: z.number(),
+      label: z.string(),
+    });
+    const lessThan = defineTypedFn({
+      name: "Less than",
+      define: z.function({
+        input: [z.number(), z.number()],
+        output: z.boolean(),
+      }),
+      implement: (value, target) => value < target,
+    });
+
+    expect(
+      isValidRule({
+        filterFnList: [lessThan],
+        dataSchema: schema,
+        rule: createSingleFilter({
+          name: "Less than",
+          path: ["score"],
+          args: [
+            {
+              type: "abs",
+              value: {
+                type: "binary",
+                op: "subtract",
+                left: { type: "field", path: ["score"] },
+                right: { type: "field", path: ["baseline"] },
+              },
+            },
+          ],
+        }),
+      }),
+    ).toBe(true);
+    expect(
+      isValidRule({
+        filterFnList: [lessThan],
+        dataSchema: schema,
+        rule: createSingleFilter({
+          name: "Less than",
+          path: ["score"],
+          args: [
+            {
+              type: "abs",
+              value: { type: "field", path: ["label"] },
+            },
+          ],
+        }),
+      }),
+    ).toBe(false);
+  });
+
+  it("should validate absolute difference filters", () => {
+    const schema = z.object({
+      systolicAtAdmission: z.number(),
+      systolicAtDischarge: z.number(),
+      label: z.string(),
+    });
+
+    expect(
+      isValidRule({
+        filterFnList: numberFilter,
+        dataSchema: schema,
+        rule: createSingleFilter({
+          name: "absoluteDifferenceLessThan",
+          path: ["systolicAtDischarge"],
+          args: [{ type: "field", path: ["systolicAtAdmission"] }, 10],
+        }),
+      }),
+    ).toBe(true);
+    expect(
+      isValidRule({
+        filterFnList: numberFilter,
+        dataSchema: schema,
+        rule: createSingleFilter({
+          name: "absoluteDifferenceLessThanOrEqual",
+          path: ["systolicAtDischarge"],
+          args: [{ type: "field", path: ["systolicAtAdmission"] }, 10],
+        }),
+      }),
+    ).toBe(true);
+    expect(
+      isValidRule({
+        filterFnList: numberFilter,
+        dataSchema: schema,
+        rule: createSingleFilter({
+          name: "absoluteDifferenceLessThan",
+          path: ["systolicAtDischarge"],
+          args: [{ type: "field", path: ["label"] }, 10],
+        }),
+      }),
+    ).toBe(false);
+  });
+
   it("should validate date offset expressions", () => {
     const schema = z.object({
       birthday: z.date(),
@@ -470,6 +567,59 @@ describe("isValidRule", () => {
               },
             },
           ],
+        }),
+      }),
+    ).toBe(false);
+  });
+
+  it("should validate days-before date range filters", () => {
+    const schema = z.object({
+      admissionDate: z.date(),
+      dischargeDate: z.date(),
+      label: z.string(),
+    });
+
+    expect(
+      isValidRule({
+        filterFnList: dateFilter,
+        dataSchema: schema,
+        rule: createSingleFilter({
+          name: "betweenDaysBefore",
+          path: ["admissionDate"],
+          args: [{ type: "field", path: ["dischargeDate"] }, 7, 14],
+        }),
+      }),
+    ).toBe(true);
+    expect(
+      isValidRule({
+        filterFnList: dateFilter,
+        dataSchema: schema,
+        rule: createSingleFilter({
+          name: "betweenDaysBeforeExclusive",
+          path: ["admissionDate"],
+          args: [{ type: "field", path: ["dischargeDate"] }, 7, 14],
+        }),
+      }),
+    ).toBe(true);
+    expect(
+      isValidRule({
+        filterFnList: dateFilter,
+        dataSchema: schema,
+        rule: createSingleFilter({
+          name: "betweenDaysBefore",
+          path: ["admissionDate"],
+          args: [{ type: "field", path: ["label"] }, 7, 14],
+        }),
+      }),
+    ).toBe(false);
+    expect(
+      isValidRule({
+        filterFnList: dateFilter,
+        dataSchema: schema,
+        rule: createSingleFilter({
+          name: "betweenDaysBefore",
+          path: ["admissionDate"],
+          args: [{ type: "field", path: ["dischargeDate"] }, "min", 14],
         }),
       }),
     ).toBe(false);

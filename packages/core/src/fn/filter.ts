@@ -13,6 +13,8 @@ import type {
 import { defineGenericFn, defineTypedFn } from "../fn-helpers.js";
 import type { GenericFnSchema, StandardFnSchema } from "../types.js";
 
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
 export const stringFilter = [
   defineTypedFn({
     name: "startsWith",
@@ -81,6 +83,26 @@ export const numberFilter = [
       return value <= target;
     },
   }),
+  defineTypedFn({
+    name: "absoluteDifferenceLessThan",
+    define: z.function({
+      input: [z.number(), z.coerce.number(), z.coerce.number()],
+      output: z.boolean(),
+    }),
+    implement: (value, target, threshold) => {
+      return Math.abs(value - target) < threshold;
+    },
+  }),
+  defineTypedFn({
+    name: "absoluteDifferenceLessThanOrEqual",
+    define: z.function({
+      input: [z.number(), z.coerce.number(), z.coerce.number()],
+      output: z.boolean(),
+    }),
+    implement: (value, target, threshold) => {
+      return Math.abs(value - target) <= threshold;
+    },
+  }),
 ];
 
 export const dateFilter = [
@@ -102,6 +124,34 @@ export const dateFilter = [
     }),
     implement: (value, target) => {
       return value.getTime() > target.getTime();
+    },
+  }),
+  defineTypedFn({
+    name: "betweenDaysBefore",
+    define: z.function({
+      input: [z.date(), z.coerce.date(), z.coerce.number(), z.coerce.number()],
+      output: z.boolean(),
+    }),
+    implement: (value, baseDate, minDays, maxDays) => {
+      if (minDays > maxDays) {
+        return false;
+      }
+      const daysBefore = (baseDate.getTime() - value.getTime()) / ONE_DAY_MS;
+      return minDays <= daysBefore && daysBefore <= maxDays;
+    },
+  }),
+  defineTypedFn({
+    name: "betweenDaysBeforeExclusive",
+    define: z.function({
+      input: [z.date(), z.coerce.date(), z.coerce.number(), z.coerce.number()],
+      output: z.boolean(),
+    }),
+    implement: (value, baseDate, minDays, maxDays) => {
+      if (minDays > maxDays) {
+        return false;
+      }
+      const daysBefore = (baseDate.getTime() - value.getTime()) / ONE_DAY_MS;
+      return minDays < daysBefore && daysBefore < maxDays;
     },
   }),
 ];

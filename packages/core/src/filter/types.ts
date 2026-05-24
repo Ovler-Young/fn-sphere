@@ -20,6 +20,11 @@ export type FilterBinaryArgExpression = {
   right: FilterArgExpression;
 };
 
+export type FilterAbsArgExpression = {
+  type: "abs";
+  value: FilterArgExpression;
+};
+
 export type FilterDateOffsetDuration = {
   years?: FilterArgExpression;
   months?: FilterArgExpression;
@@ -47,6 +52,7 @@ export type FilterArgExpression =
   | FilterFieldArgExpression
   | FilterLiteralArgExpression
   | FilterBinaryArgExpression
+  | FilterAbsArgExpression
   | FilterDateOffsetArgExpression;
 
 export type FilterId = string & {

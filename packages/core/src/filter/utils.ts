@@ -268,6 +268,7 @@ const expressionTypes = new Set([
   "field",
   "literal",
   "binary",
+  "abs",
   "dateOffset",
 ] satisfies FilterArgExpression["type"][]);
 
@@ -321,6 +322,9 @@ export const isFilterArgExpression = (
       "right" in value &&
       isFilterArgExpression(value.right)
     );
+  }
+  if (value.type === "abs") {
+    return "value" in value && isFilterArgExpression(value.value);
   }
   if (value.type === "dateOffset") {
     if (
@@ -378,6 +382,13 @@ export const resolveFilterArgExpression = <Data>(
       return left / right;
     }
     unreachable(expression.op);
+  }
+  if (expression.type === "abs") {
+    const value = resolveFilterArgExpression(expression.value, data);
+    if (typeof value !== "number") {
+      throw new Error("Abs filter argument expression requires a number");
+    }
+    return Math.abs(value);
   }
   if (expression.type === "dateOffset") {
     const base = resolveFilterArgExpression(expression.base, data);

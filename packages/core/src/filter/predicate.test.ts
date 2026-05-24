@@ -1,6 +1,7 @@
 import { describe, expect, test, vi } from "vitest";
 import { z } from "zod";
 import { defineTypedFn } from "../fn-helpers.js";
+import { dateFilter, numberFilter } from "../fn/filter.js";
 import { createFilterPredicate } from "./predicate.js";
 import type { FilterRule } from "./types.js";
 import { createSingleFilter } from "./utils.js";
@@ -451,6 +452,124 @@ describe("createFilterPredicate", () => {
         birthday: new Date("2027-03-20"),
         deadline: new Date("2026-01-01"),
         offsetMonths: 2,
+      }),
+    ).toBe(false);
+  });
+
+  test("filters absolute numeric differences against another field", () => {
+    const numericSchema = z.object({
+      baseline: z.number(),
+      followup: z.number(),
+    });
+    const lessThanRule = createSingleFilter({
+      path: ["followup"],
+      name: "absoluteDifferenceLessThan",
+      args: [{ type: "field", path: ["baseline"] }, 5],
+    });
+    const lessThanOrEqualRule = createSingleFilter({
+      path: ["followup"],
+      name: "absoluteDifferenceLessThanOrEqual",
+      args: [{ type: "field", path: ["baseline"] }, 5],
+    });
+    const lessThanPredicate = createFilterPredicate({
+      filterFnList: numberFilter,
+      schema: numericSchema,
+      filterRule: lessThanRule,
+      fallbackValue: false,
+    });
+    const lessThanOrEqualPredicate = createFilterPredicate({
+      filterFnList: numberFilter,
+      schema: numericSchema,
+      filterRule: lessThanOrEqualRule,
+      fallbackValue: false,
+    });
+
+    expect(lessThanPredicate({ baseline: 120, followup: 124 })).toBe(true);
+    expect(lessThanPredicate({ baseline: 120, followup: 125 })).toBe(false);
+    expect(lessThanOrEqualPredicate({ baseline: 120, followup: 125 })).toBe(
+      true,
+    );
+    expect(lessThanOrEqualPredicate({ baseline: 120, followup: 126 })).toBe(
+      false,
+    );
+  });
+
+  test("filters inclusive date ranges before another date", () => {
+    const dateRangeSchema = z.object({
+      admissionDate: z.date(),
+      dischargeDate: z.date(),
+    });
+    const rule = createSingleFilter({
+      path: ["admissionDate"],
+      name: "betweenDaysBefore",
+      args: [{ type: "field", path: ["dischargeDate"] }, 7, 14],
+    });
+    const predicate = createFilterPredicate({
+      filterFnList: dateFilter,
+      schema: dateRangeSchema,
+      filterRule: rule,
+      fallbackValue: false,
+    });
+
+    expect(
+      predicate({
+        admissionDate: new Date("2026-01-03T00:00:00.000Z"),
+        dischargeDate: new Date("2026-01-10T00:00:00.000Z"),
+      }),
+    ).toBe(true);
+    expect(
+      predicate({
+        admissionDate: new Date("2025-12-27T00:00:00.000Z"),
+        dischargeDate: new Date("2026-01-10T00:00:00.000Z"),
+      }),
+    ).toBe(true);
+    expect(
+      predicate({
+        admissionDate: new Date("2026-01-04T00:00:00.000Z"),
+        dischargeDate: new Date("2026-01-10T00:00:00.000Z"),
+      }),
+    ).toBe(false);
+    expect(
+      predicate({
+        admissionDate: new Date("2025-12-26T00:00:00.000Z"),
+        dischargeDate: new Date("2026-01-10T00:00:00.000Z"),
+      }),
+    ).toBe(false);
+  });
+
+  test("filters exclusive date ranges before another date", () => {
+    const dateRangeSchema = z.object({
+      admissionDate: z.date(),
+      dischargeDate: z.date(),
+    });
+    const rule = createSingleFilter({
+      path: ["admissionDate"],
+      name: "betweenDaysBeforeExclusive",
+      args: [{ type: "field", path: ["dischargeDate"] }, 7, 14],
+    });
+    const predicate = createFilterPredicate({
+      filterFnList: dateFilter,
+      schema: dateRangeSchema,
+      filterRule: rule,
+      fallbackValue: false,
+    });
+
+    expect(
+      predicate({
+        admissionDate: new Date("2026-01-02T00:00:00.000Z"),
+        dischargeDate: new Date("2026-01-10T00:00:00.000Z"),
+      }),
+    ).toBe(true);
+    expect(
+      predicate({
+        admissionDate: new Date("2026-01-03T00:00:00.000Z"),
+        dischargeDate: new Date("2026-01-10T00:00:00.000Z"),
+      }),
+    ).toBe(false);
+    expect(
+      predicate({
+        admissionDate: new Date("2025-12-27T00:00:00.000Z"),
+        dischargeDate: new Date("2026-01-10T00:00:00.000Z"),
       }),
     ).toBe(false);
   });

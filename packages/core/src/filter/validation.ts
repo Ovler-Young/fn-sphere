@@ -250,6 +250,21 @@ const inferExpressionSchema = ({
     }
     return { success: true, data: numberSchema };
   }
+  if (expression.type === "abs") {
+    const value = inferExpressionSchema({
+      dataSchema,
+      expression: expression.value,
+      expectedSchema: numberSchema,
+    });
+    if (!value.success) return value;
+    if (!isCompatibleExpressionSchema(numberSchema, value.data)) {
+      return {
+        success: false,
+        error: new Error("abs expression requires a number operand"),
+      };
+    }
+    return { success: true, data: numberSchema };
+  }
   if (expression.type === "dateOffset") {
     const base = inferExpressionSchema({
       dataSchema,
