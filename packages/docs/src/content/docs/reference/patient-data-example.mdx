@@ -1,0 +1,19 @@
+---
+title: Patient Data Example
+description: A patient table for testing cross-field filters
+---
+
+This example uses a patient dataset with admission and discharge dates, systolic blood pressure, and weight fields. It is intended for trying cross-field filters such as date ranges, blood pressure reduction, and absolute weight differences.
+
+Useful filters to try:
+
+- `admissionDate` is between 1 and 14 days before `dischargeDate`
+- `dischargeSystolic` is less than `admissionSystolic`
+- `dischargeWeight` absolute difference is less than or equal to `admissionWeight` by 5
+- `id` contains `P-01`
+
+import { PatientFilterExample } from "~/components/examples/patient-filter-example.tsx";
+
+<div className="not-content">
+  <PatientFilterExample client:load />
+</div>
