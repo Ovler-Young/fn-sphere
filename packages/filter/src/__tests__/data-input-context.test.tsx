@@ -18,8 +18,8 @@ import {
   type DataInputViewSpec,
 } from "../index.js";
 
-const lessThanSelectedField = defineTypedFn({
-  name: "lessThanSelectedField",
+const fieldArgFilter = defineTypedFn({
+  name: "fieldArgFilter",
   define: z.function({
     input: [z.number(), z.number()],
     output: z.boolean(),
@@ -27,10 +27,10 @@ const lessThanSelectedField = defineTypedFn({
   implement: (value, target) => value < target,
 });
 
-const patientSchema = z.object({
-  patientId: z.string().describe("Patient ID"),
-  admissionSystolic: z.number().describe("Admission systolic"),
-  dischargeSystolic: z.number().describe("Discharge systolic"),
+const testSchema = z.object({
+  label: z.string().describe("Label"),
+  leftNumber: z.number().describe("Left number"),
+  rightNumber: z.number().describe("Right number"),
 });
 
 const defaultRule = () =>
@@ -38,8 +38,8 @@ const defaultRule = () =>
     op: "and",
     conditions: [
       createSingleFilter({
-        path: ["dischargeSystolic"],
-        name: lessThanSelectedField.name,
+        path: ["rightNumber"],
+        name: fieldArgFilter.name,
       }),
     ],
   });
@@ -60,10 +60,9 @@ const fieldArgPath = (arg: unknown) => {
   return "";
 };
 
-const selectedFieldDataInput: DataInputViewSpec = {
-  name: "selected field arg",
-  match: ({ selectedFilter }) =>
-    selectedFilter?.name === lessThanSelectedField.name,
+const fieldArgDataInput: DataInputViewSpec = {
+  name: "field arg",
+  match: ({ selectedFilter }) => selectedFilter?.name === fieldArgFilter.name,
   view: function SelectedFieldDataInput({
     context,
     fieldSchema,
@@ -121,7 +120,7 @@ const isSamePath = (
 };
 
 const theme = createFilterTheme({
-  dataInputViews: [selectedFieldDataInput],
+  dataInputViews: [fieldArgDataInput],
 });
 
 function TestFilterBuilder({
@@ -130,8 +129,8 @@ function TestFilterBuilder({
   onRuleChange: (rule: FilterGroup) => void;
 }) {
   const { context } = useFilterSphere({
-    schema: patientSchema,
-    filterFnList: [lessThanSelectedField],
+    schema: testSchema,
+    filterFnList: [fieldArgFilter],
     defaultRule,
     onRuleChange: ({ filterRule }) => {
       onRuleChange(filterRule);
@@ -152,21 +151,21 @@ describe("custom data input context", () => {
     render(<TestFilterBuilder onRuleChange={onRuleChange} />);
 
     const rightFieldSelect = screen.getByLabelText("right field");
-    expect(rightFieldSelect.textContent).toContain("Admission systolic");
-    expect(rightFieldSelect.textContent).not.toContain("Discharge systolic");
-    expect(rightFieldSelect.textContent).not.toContain("Patient ID");
+    expect(rightFieldSelect.textContent).toContain("Left number");
+    expect(rightFieldSelect.textContent).not.toContain("Right number");
+    expect(rightFieldSelect.textContent).not.toContain("Label");
 
     fireEvent.change(rightFieldSelect, {
-      target: { value: "admissionSystolic" },
+      target: { value: "leftNumber" },
     });
 
     expect(onRuleChange).toHaveBeenCalledTimes(1);
     const nextRule = onRuleChange.mock.calls[0]?.[0];
     expect(nextRule?.conditions[0]).toMatchObject({
       type: "Filter",
-      path: ["dischargeSystolic"],
-      name: lessThanSelectedField.name,
-      args: [{ type: "field", path: ["admissionSystolic"] }],
+      path: ["rightNumber"],
+      name: fieldArgFilter.name,
+      args: [{ type: "field", path: ["leftNumber"] }],
     });
   });
 });

@@ -20,8 +20,8 @@ import { FilterSelect } from "../views/filter-select.js";
 
 afterEach(cleanup);
 
-const lessThanSelectedField = defineTypedFn({
-  name: "lessThanSelectedField",
+const fieldArgFilter = defineTypedFn({
+  name: "fieldArgFilter",
   define: z.function({
     input: [z.number(), z.number()],
     output: z.boolean(),
@@ -38,7 +38,7 @@ const defaultRule = () =>
     conditions: [
       createSingleFilter({
         path: ["left"],
-        name: lessThanSelectedField.name,
+        name: fieldArgFilter.name,
       }),
     ],
   });
@@ -66,7 +66,7 @@ const dataInputTheme = createFilterTheme({
     {
       name: "field arg input",
       match: ({ selectedFilter }) =>
-        selectedFilter?.name === lessThanSelectedField.name,
+        selectedFilter?.name === fieldArgFilter.name,
       view: function FieldArgInput() {
         return <input aria-label="field arg input" />;
       },
@@ -85,7 +85,7 @@ function getFirstRule(filterRule: FilterGroup) {
 function TestFilterSelect({ schema }: { schema: z.ZodObject }) {
   const { filterRule, context } = useFilterSphere({
     schema,
-    filterFnList: [lessThanSelectedField],
+    filterFnList: [fieldArgFilter],
     defaultRule,
   });
 
@@ -99,7 +99,7 @@ function TestFilterSelect({ schema }: { schema: z.ZodObject }) {
 function TestFilterDataInput({ schema }: { schema: z.ZodObject }) {
   const { filterRule, context } = useFilterSphere({
     schema,
-    filterFnList: [lessThanSelectedField],
+    filterFnList: [fieldArgFilter],
     defaultRule,
   });
 
@@ -121,11 +121,7 @@ function TestFieldSwitcher({
       right: z.number(),
       label: z.string(),
     }),
-    filterFnList: [
-      lessThanSelectedField,
-      fallbackNumberFilter,
-      fallbackStringFilter,
-    ],
+    filterFnList: [fieldArgFilter, fallbackNumberFilter, fallbackStringFilter],
     defaultRule,
     onRuleChange: ({ filterRule: nextRule }) => {
       onRuleChange(nextRule);
@@ -167,7 +163,7 @@ function TestFieldSwitcher({
 }
 
 describe("FilterSelect field args", () => {
-  it("hides field-arg filters when the selected field has no compatible right field", () => {
+  it("hides field-arg filters when the current field has no compatible right field", () => {
     render(
       <TestFilterSelect
         schema={z.object({
@@ -178,11 +174,11 @@ describe("FilterSelect field args", () => {
     );
 
     expect(screen.getByLabelText("filter").textContent).not.toContain(
-      lessThanSelectedField.name,
+      fieldArgFilter.name,
     );
   });
 
-  it("shows field-arg filters when the selected field has a compatible right field", () => {
+  it("shows field-arg filters when the current field has a compatible right field", () => {
     render(
       <TestFilterSelect
         schema={z.object({
@@ -193,11 +189,11 @@ describe("FilterSelect field args", () => {
     );
 
     expect(screen.getByLabelText("filter").textContent).toContain(
-      lessThanSelectedField.name,
+      fieldArgFilter.name,
     );
   });
 
-  it("does not render data input for unavailable selected filters", () => {
+  it("does not render data input for unavailable filters", () => {
     render(
       <TestFilterDataInput
         schema={z.object({
