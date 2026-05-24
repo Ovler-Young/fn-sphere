@@ -1,6 +1,7 @@
 import { getParametersExceptFirst, type SingleFilter } from "@fn-sphere/core";
 import { useFilterRule } from "../hooks/use-filter-rule.js";
 import { useFilterSchemaContext } from "../hooks/use-filter-schema-context.js";
+import { useFilterSelect } from "../hooks/use-filter-select.js";
 import { useDataInputView, useView } from "../theme/hooks.js";
 
 export type DataInputProps = {
@@ -10,7 +11,8 @@ export type DataInputProps = {
 export const FilterDataInput = ({ rule }: DataInputProps) => {
   const { Input: InputView } = useView("components");
   const context = useFilterSchemaContext();
-  const { selectedField, selectedFilter, setRule } = useFilterRule(rule);
+  const { setRule } = useFilterRule(rule);
+  const { selectedField, selectedFilter } = useFilterSelect(rule);
   const requiredArguments = selectedFilter
     ? getParametersExceptFirst(selectedFilter)
     : undefined;
